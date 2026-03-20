@@ -33,6 +33,7 @@ interface FinanceContextData {
   updateTransaction: (id: string, t: Partial<Transaction>) => void
   deleteTransaction: (id: string) => void
   addCategory: (c: Category) => void
+  updateAccount: (id: string, updates: Partial<Account>) => void
   filteredTransactions: Transaction[]
   pendingTransactions: Transaction[]
   summary: { balance: number; revenue: number; expenses: number; net: number }
@@ -121,6 +122,10 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setCategories((prev) => [...prev, c])
   }, [])
 
+  const updateAccount = useCallback((id: string, updates: Partial<Account>) => {
+    setAccounts((prev) => prev.map((a) => (a.id === id ? { ...a, ...updates } : a)))
+  }, [])
+
   const aiSuggestCategory = useCallback(
     (description: string) => {
       const desc = description.toLowerCase()
@@ -152,6 +157,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         updateTransaction,
         deleteTransaction,
         addCategory,
+        updateAccount,
         filteredTransactions,
         pendingTransactions,
         summary,

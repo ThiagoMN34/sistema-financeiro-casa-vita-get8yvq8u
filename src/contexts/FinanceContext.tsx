@@ -32,6 +32,7 @@ interface FinanceContextData {
   addTransaction: (t: Transaction) => void
   updateTransaction: (id: string, t: Partial<Transaction>) => void
   deleteTransaction: (id: string) => void
+  addCategory: (c: Category) => void
   filteredTransactions: Transaction[]
   pendingTransactions: Transaction[]
   summary: { balance: number; revenue: number; expenses: number; net: number }
@@ -116,6 +117,10 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setTransactions((prev) => prev.filter((t) => t.id !== id))
   }, [])
 
+  const addCategory = useCallback((c: Category) => {
+    setCategories((prev) => [...prev, c])
+  }, [])
+
   const aiSuggestCategory = useCallback(
     (description: string) => {
       const desc = description.toLowerCase()
@@ -146,6 +151,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         addTransaction,
         updateTransaction,
         deleteTransaction,
+        addCategory,
         filteredTransactions,
         pendingTransactions,
         summary,

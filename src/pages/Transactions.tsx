@@ -13,15 +13,29 @@ import { formatCurrency, formatDate } from '@/lib/formatters'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Search, Plus, Edit2, Bot } from 'lucide-react'
+import { Search, Plus, Edit2, Bot, Trash2 } from 'lucide-react'
 import { TransactionModal } from '@/components/transactions/TransactionModal'
 import { Transaction } from '@/data/mockData'
+import { useToast } from '@/hooks/use-toast'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 
 export default function Transactions() {
-  const { filteredTransactions, categories, companies, accounts } = useFinance()
+  const { filteredTransactions, categories, companies, accounts, deleteTransaction } = useFinance()
+  const { toast } = useToast()
   const [searchTerm, setSearchTerm] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
   const [selectedTx, setSelectedTx] = useState<Transaction | null>(null)
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false)
+  const [txToDelete, setTxToDelete] = useState<Transaction | null>(null)
 
   const displayData = filteredTransactions.filter(
     (t) =>
@@ -37,6 +51,23 @@ export default function Transactions() {
   const handleNew = () => {
     setSelectedTx(null)
     setModalOpen(true)
+  }
+
+  const handleDeleteClick = (t: Transaction) => {
+    setTxToDelete(t)
+    setDeleteModalOpen(true)
+  }
+
+  const confirmDelete = () => {
+    if (txToDelete) {
+      deleteTransaction(txToDelete.id)
+      toast({
+        title: 'Lançamento excluído',
+        description: 'O lançamento foi removido com sucesso.',
+      })
+      setDeleteModalOpen(false)
+      setTxToDelete(null)
+    }
   }
 
   return (
@@ -72,7 +103,7 @@ export default function Transactions() {
                 <TableHead className="hidden md:table-cell">Categoria</TableHead>
                 <TableHead className="hidden lg:table-cell">Empresa / Conta</TableHead>
                 <TableHead className="text-right">Valor</TableHead>
-                <TableHead className="w-[80px]"></TableHead>
+                <TableHead className="w-[100px]"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -127,14 +158,25 @@ export default function Transactions() {
                       {formatCurrency(tx.value)}
                     </TableCell>
                     <TableCell>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="opacity-0 group-hover:opacity-100 transition-opacity"
-                        onClick={() => handleEdit(tx)}
-                      >
-                        <Edit2 className="h-4 w-4" />
-                      </Button>
+                      <div className="flex justify-end items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleEdit(tx)}
+                          title="Editar"
+                        >
+                          <Edit2 className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="text-rose-500 hover:text-rose-600 hover:bg-rose-50"
+                          onClick={() => handleDeleteClick(tx)}
+                          title="Excluir"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))
@@ -145,6 +187,26 @@ export default function Transactions() {
       </Card>
 
       <TransactionModal open={modalOpen} onOpenChange={setModalOpen} transaction={selectedTx} />
+
+      <AlertDialog open={deleteModalOpen} onOpenChange={setDeleteModalOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir Lançamento</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir este lançamento? Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setTxToDelete(null)}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

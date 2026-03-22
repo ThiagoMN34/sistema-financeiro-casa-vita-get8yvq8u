@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useFinance } from '@/contexts/FinanceContext'
 import { Card, CardContent } from '@/components/ui/card'
 import {
@@ -13,7 +14,7 @@ import { formatCurrency, formatDate } from '@/lib/formatters'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Search, Plus, Edit2, Bot, Trash2 } from 'lucide-react'
+import { Search, Plus, Edit2, Bot, Trash2, UploadCloud } from 'lucide-react'
 import { TransactionModal } from '@/components/transactions/TransactionModal'
 import { Transaction } from '@/data/mockData'
 import { useToast } from '@/hooks/use-toast'
@@ -87,6 +88,11 @@ export default function Transactions() {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
+          <Button variant="outline" asChild>
+            <Link to="/import">
+              <UploadCloud className="h-4 w-4 mr-2" /> Importar
+            </Link>
+          </Button>
           <Button onClick={handleNew}>
             <Plus className="h-4 w-4 mr-2" /> Novo
           </Button>

@@ -32,7 +32,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { AlertCircle, ArrowDownRight, ArrowUpRight, Activity } from 'lucide-react'
+import { AlertCircle, ArrowDownRight, ArrowUpRight, Activity, ListFilter } from 'lucide-react'
 
 const COLORS = [
   '#10B981',
@@ -82,7 +82,7 @@ export default function Reports() {
   }, [datePreset])
 
   const filteredTransactions = useMemo(() => {
-    return transactions.filter((t) => {
+    const filtered = transactions.filter((t) => {
       if (typeFilter !== 'ALL' && t.type !== typeFilter) return false
       if (categoryFilter !== 'ALL' && t.categoryId !== categoryFilter) return false
 
@@ -96,6 +96,10 @@ export default function Reports() {
       }
       return true
     })
+
+    return filtered.sort(
+      (a, b) => new Date(b.paymentDate).getTime() - new Date(a.paymentDate).getTime(),
+    )
   }, [transactions, typeFilter, categoryFilter, dateRange])
 
   const summary = useMemo(() => {
@@ -173,7 +177,7 @@ export default function Reports() {
   }, [filteredTransactions, transactions])
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
+    <div className="space-y-6 max-w-7xl mx-auto pb-12">
       <div>
         <h2 className="text-2xl font-bold tracking-tight">Relatórios Inteligentes</h2>
         <p className="text-muted-foreground">
@@ -373,6 +377,60 @@ export default function Reports() {
           </CardContent>
         </Card>
       </div>
+
+      <Card className="shadow-subtle border-slate-100">
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <ListFilter className="size-5 text-indigo-500" />
+            <CardTitle className="text-lg">Lançamentos do Período</CardTitle>
+          </div>
+          <CardDescription>
+            Lista detalhada das {filteredTransactions.length} transações correspondentes aos filtros
+            aplicados.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="p-0 max-h-[500px] overflow-y-auto">
+          <Table>
+            <TableHeader className="bg-slate-50/80 sticky top-0 z-10 shadow-sm backdrop-blur-sm">
+              <TableRow>
+                <TableHead className="w-[100px]">Data</TableHead>
+                <TableHead>Descrição</TableHead>
+                <TableHead>Categoria</TableHead>
+                <TableHead className="text-right">Valor</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredTransactions.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">
+                    Nenhuma transação encontrada para os filtros selecionados.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filteredTransactions.map((tx) => (
+                  <TableRow key={tx.id} className="group transition-colors hover:bg-slate-50">
+                    <TableCell className="font-medium text-slate-600">
+                      {formatDate(tx.paymentDate)}
+                    </TableCell>
+                    <TableCell>
+                      <span className="font-semibold text-slate-800">{tx.description}</span>
+                    </TableCell>
+                    <TableCell className="text-sm text-slate-500">
+                      {categories.find((c) => c.id === tx.categoryId)?.name || '-'}
+                    </TableCell>
+                    <TableCell
+                      className={`text-right font-bold ${tx.type === 'IN' ? 'text-emerald-600' : 'text-rose-600'}`}
+                    >
+                      {tx.type === 'OUT' ? '-' : '+'}
+                      {formatCurrency(tx.value)}
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
 
       <Card className="shadow-subtle border-slate-100">
         <CardHeader>

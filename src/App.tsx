@@ -6,6 +6,7 @@ import Layout from './components/Layout'
 import Index from './pages/Index'
 import Transactions from './pages/Transactions'
 import Import from './pages/Import'
+import Reports from './pages/Reports'
 import Categories from './pages/Categories'
 import Accounts from './pages/Accounts'
 import NotFound from './pages/NotFound'
@@ -38,6 +39,7 @@ const App = () => (
                 <Route path="/" element={<Index />} />
                 <Route path="/transactions" element={<Transactions />} />
                 <Route path="/import" element={<Import />} />
+                <Route path="/reports" element={<Reports />} />
                 <Route path="/categories" element={<Categories />} />
                 <Route path="/accounts" element={<Accounts />} />
               </Route>

@@ -1,5 +1,13 @@
 import { Link, useLocation } from 'react-router-dom'
-import { LayoutDashboard, ReceiptText, Tags, Landmark, UploadCloud, Building2 } from 'lucide-react'
+import {
+  LayoutDashboard,
+  ReceiptText,
+  Tags,
+  Landmark,
+  UploadCloud,
+  Building2,
+  BarChart3,
+} from 'lucide-react'
 import {
   Sidebar,
   SidebarContent,
@@ -17,6 +25,7 @@ const navigation = [
   { name: 'Visão Geral', to: '/', icon: LayoutDashboard },
   { name: 'Lançamentos', to: '/transactions', icon: ReceiptText },
   { name: 'Importar Extrato', to: '/import', icon: UploadCloud },
+  { name: 'Relatórios', to: '/reports', icon: BarChart3 },
   { name: 'Categorias', to: '/categories', icon: Tags },
   { name: 'Contas Bancárias', to: '/accounts', icon: Landmark },
 ]

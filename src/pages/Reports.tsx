@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react'
-import { useFinance } from '@/contexts/FinanceContext'
+import { useFinance, Transaction } from '@/contexts/FinanceContext'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import {
   Select,
@@ -22,6 +22,8 @@ import {
   Cell,
   Tooltip as RechartsTooltip,
   Legend,
+  Line,
+  LineChart,
 } from 'recharts'
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart'
 import {
@@ -40,6 +42,8 @@ import {
   ListFilter,
   Check,
   ChevronsUpDown,
+  Download,
+  Pencil,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -53,6 +57,7 @@ import {
   CommandSeparator,
 } from '@/components/ui/command'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { TransactionModal } from '@/components/transactions/TransactionModal'
 
 const COLORS = [
   '#10B981',
@@ -78,6 +83,9 @@ export default function Reports() {
   const [typeFilter, setTypeFilter] = useState('ALL')
   const [selectedCategories, setSelectedCategories] = useState<string[]>([])
   const [openCategory, setOpenCategory] = useState(false)
+
+  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null)
+  const [isModalOpen, setIsModalOpen] = useState(false)
 
   useEffect(() => {
     const now = new Date()
@@ -158,6 +166,29 @@ export default function Reports() {
     return Array.from(grouped.values()).sort((a, b) => a.sortKey.localeCompare(b.sortKey))
   }, [filteredTransactions, dateRange])
 
+  const monthlyComparisonData = useMemo(() => {
+    const grouped = new Map()
+    filteredTransactions.forEach((t) => {
+      const date = new Date(t.paymentDate)
+      const key = format(date, 'MMM/yy', { locale: ptBR })
+      const sortKey = format(date, 'yyyy-MM')
+
+      if (!grouped.has(sortKey)) {
+        grouped.set(sortKey, { name: key, sortKey, Receitas: 0, Despesas: 0, Saldo: 0 })
+      }
+      const group = grouped.get(sortKey)
+      if (t.type === 'IN') {
+        group.Receitas += t.value
+        group.Saldo += t.value
+      } else {
+        group.Despesas += t.value
+        group.Saldo -= t.value
+      }
+    })
+
+    return Array.from(grouped.values()).sort((a, b) => a.sortKey.localeCompare(b.sortKey))
+  }, [filteredTransactions])
+
   const categoryData = useMemo(() => {
     const grouped = new Map()
     filteredTransactions.forEach((t) => {
@@ -197,13 +228,45 @@ export default function Reports() {
     return anomalies.sort((a, b) => b.value - a.value).slice(0, 10)
   }, [filteredTransactions, transactions])
 
+  const handleEdit = (tx: Transaction) => {
+    setEditingTransaction(tx)
+    setIsModalOpen(true)
+  }
+
+  const exportToCSV = () => {
+    const headers = ['Data', 'Descrição', 'Categoria', 'Tipo', 'Valor']
+    const rows = filteredTransactions.map((tx) => [
+      formatDate(tx.paymentDate),
+      `"${tx.description.replace(/"/g, '""')}"`,
+      `"${categories.find((c) => c.id === tx.categoryId)?.name || ''}"`,
+      tx.type === 'IN' ? 'Receita' : 'Despesa',
+      tx.value.toString().replace('.', ','),
+    ])
+
+    const csvContent = [headers.join(';'), ...rows.map((r) => r.join(';'))].join('\n')
+    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.setAttribute('href', url)
+    link.setAttribute('download', `relatorio_financeiro_${format(new Date(), 'yyyy-MM-dd')}.csv`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
+
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12">
-      <div>
-        <h2 className="text-2xl font-bold tracking-tight">Relatórios Inteligentes</h2>
-        <p className="text-muted-foreground">
-          Analise os seus dados financeiros com filtros avançados e gráficos.
-        </p>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight">Relatórios Inteligentes</h2>
+          <p className="text-muted-foreground">
+            Analise os seus dados financeiros com filtros avançados e gráficos.
+          </p>
+        </div>
+        <Button onClick={exportToCSV} variant="outline" className="shrink-0 bg-white shadow-sm">
+          <Download className="mr-2 h-4 w-4 text-slate-500" />
+          Exportar CSV
+        </Button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-slate-50 p-4 rounded-lg border border-slate-200">
@@ -469,13 +532,82 @@ export default function Reports() {
 
       <Card className="shadow-subtle border-slate-100">
         <CardHeader>
+          <CardTitle className="text-base">Comparativo Mensal</CardTitle>
+          <CardDescription>
+            Evolução de receitas, despesas e saldo ao longo dos meses
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="pl-0">
+          {monthlyComparisonData.length > 0 ? (
+            <ChartContainer
+              config={{
+                Receitas: { color: '#10B981' },
+                Despesas: { color: '#E11D48' },
+                Saldo: { color: '#3B82F6' },
+              }}
+              className="h-[300px] w-full"
+            >
+              <LineChart
+                data={monthlyComparisonData}
+                margin={{ top: 10, right: 10, left: 10, bottom: 0 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
+                <XAxis
+                  dataKey="name"
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fill: '#64748B', fontSize: 12 }}
+                  dy={10}
+                />
+                <ChartTooltip
+                  content={<ChartTooltipContent formatter={(v: number) => formatCurrency(v)} />}
+                />
+                <Legend
+                  verticalAlign="bottom"
+                  height={36}
+                  iconType="circle"
+                  wrapperStyle={{ fontSize: '12px' }}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="Receitas"
+                  stroke="var(--color-Receitas)"
+                  strokeWidth={2}
+                  dot={{ r: 4 }}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="Despesas"
+                  stroke="var(--color-Despesas)"
+                  strokeWidth={2}
+                  dot={{ r: 4 }}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="Saldo"
+                  stroke="var(--color-Saldo)"
+                  strokeWidth={3}
+                  dot={{ r: 4 }}
+                />
+              </LineChart>
+            </ChartContainer>
+          ) : (
+            <div className="h-[300px] flex items-center justify-center text-muted-foreground text-sm">
+              Sem dados para exibir no período selecionado
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="shadow-subtle border-slate-100">
+        <CardHeader>
           <div className="flex items-center gap-2">
             <ListFilter className="size-5 text-indigo-500" />
             <CardTitle className="text-lg">Lançamentos do Período</CardTitle>
           </div>
           <CardDescription>
             Lista detalhada das {filteredTransactions.length} transações correspondentes aos filtros
-            aplicados.
+            aplicados. Clique em um lançamento para editar.
           </CardDescription>
         </CardHeader>
         <CardContent className="p-0 max-h-[500px] overflow-y-auto">
@@ -486,18 +618,23 @@ export default function Reports() {
                 <TableHead>Descrição</TableHead>
                 <TableHead>Categoria</TableHead>
                 <TableHead className="text-right">Valor</TableHead>
+                <TableHead className="w-[50px]"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredTransactions.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">
+                  <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
                     Nenhuma transação encontrada para os filtros selecionados.
                   </TableCell>
                 </TableRow>
               ) : (
                 filteredTransactions.map((tx) => (
-                  <TableRow key={tx.id} className="group transition-colors hover:bg-slate-50">
+                  <TableRow
+                    key={tx.id}
+                    className="group transition-colors hover:bg-slate-50 cursor-pointer"
+                    onClick={() => handleEdit(tx)}
+                  >
                     <TableCell className="font-medium text-slate-600">
                       {formatDate(tx.paymentDate)}
                     </TableCell>
@@ -512,6 +649,19 @@ export default function Reports() {
                     >
                       {tx.type === 'OUT' ? '-' : '+'}
                       {formatCurrency(tx.value)}
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity text-slate-400 hover:text-slate-600"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleEdit(tx)
+                        }}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
                     </TableCell>
                   </TableRow>
                 ))
@@ -540,18 +690,23 @@ export default function Reports() {
                 <TableHead>Descrição</TableHead>
                 <TableHead>Categoria</TableHead>
                 <TableHead className="text-right">Valor</TableHead>
+                <TableHead className="w-[50px]"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {unusualTransactions.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">
+                  <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
                     Nenhum lançamento incomum detectado no período filtrado.
                   </TableCell>
                 </TableRow>
               ) : (
                 unusualTransactions.map((tx) => (
-                  <TableRow key={tx.id} className="group transition-colors hover:bg-slate-50">
+                  <TableRow
+                    key={tx.id}
+                    className="group transition-colors hover:bg-slate-50 cursor-pointer"
+                    onClick={() => handleEdit(tx)}
+                  >
                     <TableCell className="font-medium text-slate-600">
                       {formatDate(tx.paymentDate)}
                     </TableCell>
@@ -567,6 +722,19 @@ export default function Reports() {
                       {tx.type === 'OUT' ? '-' : '+'}
                       {formatCurrency(tx.value)}
                     </TableCell>
+                    <TableCell>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity text-slate-400 hover:text-slate-600"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleEdit(tx)
+                        }}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                    </TableCell>
                   </TableRow>
                 ))
               )}
@@ -574,6 +742,17 @@ export default function Reports() {
           </Table>
         </CardContent>
       </Card>
+
+      <TransactionModal
+        open={isModalOpen}
+        onOpenChange={(open) => {
+          setIsModalOpen(open)
+          if (!open) {
+            setTimeout(() => setEditingTransaction(null), 200)
+          }
+        }}
+        transaction={editingTransaction}
+      />
     </div>
   )
 }

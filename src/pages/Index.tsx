@@ -10,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { startOfMonth, endOfMonth, subMonths, isWithinInterval, format } from 'date-fns'
+import { startOfMonth, endOfMonth, subMonths, addMonths, isWithinInterval, format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import {
   Bar,
@@ -22,13 +22,15 @@ import {
   Cell,
   Tooltip as RechartsTooltip,
   Legend,
+  ComposedChart,
+  Line,
 } from 'recharts'
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart'
 
 const COLORS = ['#10B981', '#E11D48', '#F59E0B', '#3B82F6', '#8B5CF6', '#14B8A6', '#F43F5E']
 
 export default function Index() {
-  const { transactions, accounts, companies, categories } = useFinance()
+  const { transactions, accounts, companies, categories, debts, debtInstallments } = useFinance()
   const [selectedCompany, setSelectedCompany] = useState<string>('all')
 
   const now = useMemo(() => new Date(), [])
@@ -47,13 +49,24 @@ export default function Index() {
     return accounts.filter((a) => a.companyId === selectedCompany)
   }, [accounts, selectedCompany])
 
+  const dashboardDebts = useMemo(() => {
+    if (selectedCompany === 'all') return debts
+    return debts.filter((d) => d.companyId === selectedCompany)
+  }, [debts, selectedCompany])
+
+  const dashboardDebtInstallments = useMemo(() => {
+    const validDebtIds = new Set(dashboardDebts.map((d) => d.id))
+    return debtInstallments.filter((i) => validDebtIds.has(i.debtId))
+  }, [debtInstallments, dashboardDebts])
+
   const saldoAtual = useMemo(() => {
     const initial = dashboardAccounts.reduce((sum, a) => sum + a.initialBalance, 0)
-    const txs = dashboardTransactions.reduce((sum, t) => {
-      return sum + (t.type === 'IN' ? t.value : -t.value)
-    }, 0)
+    const validTxs = dashboardTransactions.filter(
+      (t) => t.status === 'CONFIRMED' || new Date(t.paymentDate) <= now,
+    )
+    const txs = validTxs.reduce((sum, t) => sum + (t.type === 'IN' ? t.value : -t.value), 0)
     return initial + txs
-  }, [dashboardAccounts, dashboardTransactions])
+  }, [dashboardAccounts, dashboardTransactions, now])
 
   const thisMonthTxs = useMemo(
     () =>
@@ -165,6 +178,82 @@ export default function Index() {
       .slice(0, 5)
   }, [thisMonthTxs, categories])
 
+  const projectionData = useMemo(() => {
+    const histStart = startOfMonth(subMonths(now, 3))
+    const histEnd = endOfMonth(subMonths(now, 1))
+    const histTxs = dashboardTransactions.filter(
+      (t) =>
+        isWithinInterval(new Date(t.paymentDate), { start: histStart, end: histEnd }) &&
+        t.status === 'CONFIRMED',
+    )
+    const histIn =
+      histTxs.filter((t) => t.type === 'IN').reduce((acc, t) => acc + t.value, 0) / 3 || 0
+    const histOut =
+      histTxs
+        .filter((t) => t.type === 'OUT' && !t.debtInstallmentId)
+        .reduce((acc, t) => acc + t.value, 0) / 3 || 0
+
+    const remainderOfCurrentMonthTxs = dashboardTransactions.filter(
+      (t) =>
+        t.status === 'PENDING' &&
+        new Date(t.paymentDate) > now &&
+        new Date(t.paymentDate) <= currentMonthEnd,
+    )
+    const remainderIn = remainderOfCurrentMonthTxs
+      .filter((t) => t.type === 'IN')
+      .reduce((acc, t) => acc + t.value, 0)
+    const remainderOut = remainderOfCurrentMonthTxs
+      .filter((t) => t.type === 'OUT' && !t.debtInstallmentId)
+      .reduce((acc, t) => acc + t.value, 0)
+
+    const remainderDebts = dashboardDebtInstallments.filter(
+      (inst) =>
+        inst.status === 'PENDING' &&
+        new Date(inst.dueDate) > now &&
+        new Date(inst.dueDate) <= currentMonthEnd,
+    )
+    const remainderDebtOut = remainderDebts.reduce((acc, inst) => acc + inst.amount, 0)
+
+    let runningBal = saldoAtual + remainderIn - (remainderOut + remainderDebtOut)
+
+    const data = []
+
+    for (let i = 1; i <= 6; i++) {
+      const targetMonth = addMonths(now, i)
+      const start = startOfMonth(targetMonth)
+      const end = endOfMonth(targetMonth)
+
+      const monthTxs = dashboardTransactions.filter(
+        (t) => t.status === 'PENDING' && isWithinInterval(new Date(t.paymentDate), { start, end }),
+      )
+      const pendingIn = monthTxs.filter((t) => t.type === 'IN').reduce((acc, t) => acc + t.value, 0)
+      const pendingOut = monthTxs
+        .filter((t) => t.type === 'OUT' && !t.debtInstallmentId)
+        .reduce((acc, t) => acc + t.value, 0)
+
+      const monthDebts = dashboardDebtInstallments.filter(
+        (inst) =>
+          inst.status === 'PENDING' && isWithinInterval(new Date(inst.dueDate), { start, end }),
+      )
+      const pendingDebtOut = monthDebts.reduce((acc, inst) => acc + inst.amount, 0)
+
+      const projectedIn = Math.max(pendingIn, histIn)
+      const projectedOperatingOut = Math.max(pendingOut, histOut)
+      const totalProjectedOut = projectedOperatingOut + pendingDebtOut
+
+      runningBal = runningBal + projectedIn - totalProjectedOut
+
+      data.push({
+        name: format(targetMonth, 'MMM/yy', { locale: ptBR }),
+        Receitas: projectedIn,
+        Despesas: totalProjectedOut,
+        Saldo: runningBal,
+      })
+    }
+
+    return data
+  }, [saldoAtual, now, currentMonthEnd, dashboardTransactions, dashboardDebtInstallments])
+
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -198,7 +287,7 @@ export default function Index() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-slate-800">{formatCurrency(saldoAtual)}</div>
-            <p className="text-xs text-muted-foreground mt-1">Saldo consolidado</p>
+            <p className="text-xs text-muted-foreground mt-1">Saldo consolidado até hoje</p>
           </CardContent>
         </Card>
 
@@ -331,6 +420,68 @@ export default function Index() {
           </CardContent>
         </Card>
       </div>
+
+      <Card className="shadow-subtle border-slate-100">
+        <CardHeader>
+          <CardTitle className="text-base">Projeção de Fluxo de Caixa (Próximos 6 Meses)</CardTitle>
+          <CardDescription>
+            Previsão automática baseada na média dos últimos 3 meses e contas a pagar/receber
+            futuras (incluindo parcelas de dívidas e financiamentos).
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="pl-0">
+          <ChartContainer
+            config={{
+              Receitas: { color: '#10B981' },
+              Despesas: { color: '#E11D48' },
+              Saldo: { color: '#3B82F6' },
+            }}
+            className="h-[350px] w-full"
+          >
+            <ComposedChart
+              data={projectionData}
+              margin={{ top: 10, right: 10, left: 10, bottom: 0 }}
+            >
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
+              <XAxis
+                dataKey="name"
+                axisLine={false}
+                tickLine={false}
+                tick={{ fill: '#64748B', fontSize: 12 }}
+                dy={10}
+              />
+              <ChartTooltip
+                content={<ChartTooltipContent formatter={(v: number) => formatCurrency(v)} />}
+              />
+              <Legend
+                verticalAlign="bottom"
+                height={36}
+                iconType="circle"
+                wrapperStyle={{ fontSize: '12px' }}
+              />
+              <Bar
+                dataKey="Receitas"
+                fill="var(--color-Receitas)"
+                radius={[4, 4, 0, 0]}
+                maxBarSize={40}
+              />
+              <Bar
+                dataKey="Despesas"
+                fill="var(--color-Despesas)"
+                radius={[4, 4, 0, 0]}
+                maxBarSize={40}
+              />
+              <Line
+                type="monotone"
+                dataKey="Saldo"
+                stroke="var(--color-Saldo)"
+                strokeWidth={3}
+                dot={{ r: 4 }}
+              />
+            </ComposedChart>
+          </ChartContainer>
+        </CardContent>
+      </Card>
     </div>
   )
 }

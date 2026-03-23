@@ -87,24 +87,19 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [accounts, setAccounts] = useState<Account[]>([])
   const [companies, setCompanies] = useState<Company[]>([])
   const [filters, setFilters] = useState<Filters>(initialFilters)
-  const [aiDictionary, setAiDictionary] = useState<Record<string, string>>({
-    neoenergia: 'c4',
-    compesa: 'c5',
-    limpeza: 'c10',
-    atacadão: 'c10',
-    folha: 'c8',
-    salario: 'c8',
-  })
+  const [aiDictionary, setAiDictionary] = useState<Record<string, string>>({})
 
   useEffect(() => {
     if (!session) return
 
     const fetchData = async () => {
-      const [comps, accs, cats, txs] = await Promise.all([
+      const [comps, accs, cats, txs, patterns] = await Promise.all([
         supabase.from('companies').select('*'),
         supabase.from('accounts').select('*'),
         supabase.from('categories').select('*'),
         supabase.from('transactions').select('*').order('payment_date', { ascending: false }),
+        // @ts-expect-error - Table dynamically created via migration
+        supabase.from('ai_patterns').select('*'),
       ])
 
       if (comps.data) setCompanies(comps.data.map((c) => ({ id: c.id, name: c.name })))
@@ -142,6 +137,13 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
             aiConfidence: t.ai_confidence as any,
           })),
         )
+      }
+      if (patterns.data) {
+        const dict: Record<string, string> = {}
+        patterns.data.forEach((p: any) => {
+          dict[p.keyword] = p.category_id
+        })
+        setAiDictionary(dict)
       }
     }
 
@@ -267,23 +269,86 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const aiSuggestCategory = useCallback(
     (description: string) => {
-      const desc = description.toLowerCase()
-      for (const [keyword, catId] of Object.entries(aiDictionary)) {
-        if (desc.includes(keyword)) {
+      const descClean = description
+        .toLowerCase()
+        .replace(/[0-9]/g, '')
+        .replace(/[^\w\sÀ-ÿ]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim()
+
+      if (!descClean || descClean.length < 3) {
+        return { categoryId: categories[0]?.id || 'c13', confidence: 'low' as const }
+      }
+
+      // 1. Exact or partial match in learned dictionary (longest match first)
+      const patterns = Object.entries(aiDictionary).sort((a, b) => b[0].length - a[0].length)
+      for (const [keyword, catId] of patterns) {
+        if (descClean.includes(keyword)) {
           return { categoryId: catId, confidence: 'high' as const }
         }
       }
+
+      // 2. Historical similarity (check recent transactions for common keywords)
+      const words = descClean.split(' ').filter((w) => w.length > 2)
+      if (words.length > 0) {
+        let bestMatchCat = null
+        let bestScore = 0
+
+        // Limit to 500 recent transactions for performance
+        const recentTxs = transactions.slice(0, 500)
+
+        for (const tx of recentTxs) {
+          const txDescClean = tx.description
+            .toLowerCase()
+            .replace(/[0-9]/g, '')
+            .replace(/[^\w\sÀ-ÿ]/g, '')
+            .replace(/\s+/g, ' ')
+            .trim()
+
+          let score = 0
+          for (const w of words) {
+            if (txDescClean.includes(w)) score++
+          }
+
+          // Require at least 60% word overlap for medium confidence
+          const requiredScore = Math.max(1, Math.ceil(words.length * 0.6))
+          if (score > bestScore && score >= requiredScore) {
+            bestScore = score
+            bestMatchCat = tx.categoryId
+          }
+        }
+
+        if (bestMatchCat) {
+          return { categoryId: bestMatchCat, confidence: 'medium' as const }
+        }
+      }
+
+      // Fallback
       const defaultCat = categories.find((c) => c.name.toLowerCase().includes('outras despesas'))
       return {
         categoryId: defaultCat?.id || categories[0]?.id || 'c13',
         confidence: 'low' as const,
       }
     },
-    [aiDictionary, categories],
+    [aiDictionary, transactions, categories],
   )
 
-  const learnAiMapping = useCallback((keyword: string, categoryId: string) => {
-    setAiDictionary((prev) => ({ ...prev, [keyword.toLowerCase()]: categoryId }))
+  const learnAiMapping = useCallback(async (description: string, categoryId: string) => {
+    const keyword = description
+      .toLowerCase()
+      .replace(/[0-9]/g, '')
+      .replace(/[^\w\sÀ-ÿ]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+
+    if (keyword.length < 3) return
+
+    setAiDictionary((prev) => ({ ...prev, [keyword]: categoryId }))
+
+    // @ts-expect-error - Table dynamically created via migration
+    await supabase
+      .from('ai_patterns')
+      .upsert({ keyword, category_id: categoryId }, { onConflict: 'keyword' })
   }, [])
 
   return React.createElement(

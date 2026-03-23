@@ -93,10 +93,9 @@ export function TransactionModal({ open, onOpenChange, transaction }: Transactio
       status: 'CONFIRMED',
     }
 
-    // Learn if user picked different from AI
-    if (aiSuggestion && data.categoryId !== aiSuggestion.id) {
-      const words = data.description.split(' ').filter((w: string) => w.length > 3)
-      if (words.length > 0) learnAiMapping(words[0], data.categoryId)
+    // Always learn mapping from confirmed user input for persistent AI evolution
+    if (data.description && data.categoryId) {
+      learnAiMapping(data.description, data.categoryId)
     }
 
     if (transaction) updateTransaction(transaction.id, payload)
@@ -163,11 +162,14 @@ export function TransactionModal({ open, onOpenChange, transaction }: Transactio
                       <span className="text-xs text-muted-foreground">IA sugere:</span>
                       <Badge
                         variant="outline"
-                        className="text-[10px] bg-emerald-50 cursor-pointer"
+                        className="text-[10px] bg-emerald-50 cursor-pointer hover:bg-emerald-100 transition-colors"
                         onClick={() => form.setValue('categoryId', aiSuggestion.id)}
                       >
                         {categories.find((c) => c.id === aiSuggestion.id)?.name}
                       </Badge>
+                      <span className="text-[10px] text-muted-foreground opacity-60">
+                        ({aiSuggestion.conf})
+                      </span>
                     </div>
                   )}
                 </FormItem>

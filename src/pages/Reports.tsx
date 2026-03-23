@@ -32,7 +32,27 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { AlertCircle, ArrowDownRight, ArrowUpRight, Activity, ListFilter } from 'lucide-react'
+import {
+  AlertCircle,
+  ArrowDownRight,
+  ArrowUpRight,
+  Activity,
+  ListFilter,
+  Check,
+  ChevronsUpDown,
+} from 'lucide-react'
+import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+  CommandSeparator,
+} from '@/components/ui/command'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 
 const COLORS = [
   '#10B981',
@@ -56,7 +76,8 @@ export default function Reports() {
   }))
   const [datePreset, setDatePreset] = useState('this_month')
   const [typeFilter, setTypeFilter] = useState('ALL')
-  const [categoryFilter, setCategoryFilter] = useState('ALL')
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([])
+  const [openCategory, setOpenCategory] = useState(false)
 
   useEffect(() => {
     const now = new Date()
@@ -84,7 +105,7 @@ export default function Reports() {
   const filteredTransactions = useMemo(() => {
     const filtered = transactions.filter((t) => {
       if (typeFilter !== 'ALL' && t.type !== typeFilter) return false
-      if (categoryFilter !== 'ALL' && t.categoryId !== categoryFilter) return false
+      if (selectedCategories.length > 0 && !selectedCategories.includes(t.categoryId)) return false
 
       if (dateRange?.from && dateRange?.to) {
         const d = new Date(t.paymentDate).getTime()
@@ -100,7 +121,7 @@ export default function Reports() {
     return filtered.sort(
       (a, b) => new Date(b.paymentDate).getTime() - new Date(a.paymentDate).getTime(),
     )
-  }, [transactions, typeFilter, categoryFilter, dateRange])
+  }, [transactions, typeFilter, selectedCategories, dateRange])
 
   const summary = useMemo(() => {
     let inTotal = 0
@@ -232,21 +253,89 @@ export default function Reports() {
 
         <div className="space-y-1">
           <label className="text-xs font-medium text-slate-500 uppercase tracking-wider">
-            Categoria
+            Categorias
           </label>
-          <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-            <SelectTrigger className="bg-white">
-              <SelectValue placeholder="Todas as Categorias" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="ALL">Todas as Categorias</SelectItem>
-              {categories.map((c) => (
-                <SelectItem key={c.id} value={c.id}>
-                  {c.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <Popover open={openCategory} onOpenChange={setOpenCategory}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                role="combobox"
+                aria-expanded={openCategory}
+                className="w-full justify-between bg-white font-normal hover:bg-slate-50"
+              >
+                <span className="truncate">
+                  {selectedCategories.length === 0
+                    ? 'Todas as Categorias'
+                    : selectedCategories.length === 1
+                      ? categories.find((c) => c.id === selectedCategories[0])?.name
+                      : `${selectedCategories.length} selecionadas`}
+                </span>
+                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[280px] p-0" align="start">
+              <Command>
+                <CommandInput placeholder="Buscar categoria..." />
+                <CommandList>
+                  <CommandEmpty>Nenhuma categoria encontrada.</CommandEmpty>
+                  <CommandGroup>
+                    <CommandItem
+                      onSelect={() => {
+                        setSelectedCategories([])
+                        setOpenCategory(false)
+                      }}
+                      className="cursor-pointer"
+                    >
+                      <div
+                        className={cn(
+                          'mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-primary',
+                          selectedCategories.length === 0
+                            ? 'bg-primary text-primary-foreground'
+                            : 'opacity-50 [&_svg]:invisible',
+                        )}
+                      >
+                        <Check className="h-4 w-4" />
+                      </div>
+                      <span className={selectedCategories.length === 0 ? 'font-medium' : ''}>
+                        Todas as Categorias
+                      </span>
+                    </CommandItem>
+                  </CommandGroup>
+                  <CommandSeparator />
+                  <CommandGroup>
+                    {categories.map((category) => {
+                      const isSelected = selectedCategories.includes(category.id)
+                      return (
+                        <CommandItem
+                          key={category.id}
+                          onSelect={() => {
+                            setSelectedCategories((prev) =>
+                              isSelected
+                                ? prev.filter((id) => id !== category.id)
+                                : [...prev, category.id],
+                            )
+                          }}
+                          className="cursor-pointer"
+                        >
+                          <div
+                            className={cn(
+                              'mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-primary',
+                              isSelected
+                                ? 'bg-primary text-primary-foreground'
+                                : 'opacity-50 [&_svg]:invisible',
+                            )}
+                          >
+                            <Check className="h-4 w-4" />
+                          </div>
+                          <span>{category.name}</span>
+                        </CommandItem>
+                      )
+                    })}
+                  </CommandGroup>
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
         </div>
       </div>
 

@@ -20,6 +20,7 @@ import { useFinance, Transaction } from '@/contexts/FinanceContext'
 import { Form, FormControl, FormField, FormItem, FormLabel } from '@/components/ui/form'
 import { Badge } from '@/components/ui/badge'
 import { Bot } from 'lucide-react'
+import { formatCurrency } from '@/lib/formatters'
 
 interface TransactionModalProps {
   open: boolean
@@ -32,12 +33,16 @@ export function TransactionModal({ open, onOpenChange, transaction }: Transactio
     categories,
     companies,
     accounts,
+    debts,
+    debtInstallments,
     addTransaction,
     updateTransaction,
     aiSuggestCategory,
     learnAiMapping,
   } = useFinance()
   const [aiSuggestion, setAiSuggestion] = useState<{ id: string; conf: string } | null>(null)
+
+  const pendingInstallments = debtInstallments.filter((i) => i.status === 'PENDING')
 
   const form = useForm<any>({
     defaultValues: {
@@ -49,6 +54,7 @@ export function TransactionModal({ open, onOpenChange, transaction }: Transactio
       companyId: '',
       accountId: '',
       nfNumber: '',
+      debtInstallmentId: 'none',
     },
   })
 
@@ -57,6 +63,7 @@ export function TransactionModal({ open, onOpenChange, transaction }: Transactio
       form.reset({
         ...transaction,
         date: transaction.paymentDate.split('T')[0],
+        debtInstallmentId: transaction.debtInstallmentId || 'none',
       })
     } else {
       form.reset({
@@ -68,9 +75,10 @@ export function TransactionModal({ open, onOpenChange, transaction }: Transactio
         companyId: companies[0]?.id || '',
         accountId: accounts[0]?.id || '',
         nfNumber: '',
+        debtInstallmentId: 'none',
       })
     }
-  }, [transaction, open, companies, accounts])
+  }, [transaction, open, companies, accounts, form])
 
   // AI Simulation Effect
   useEffect(() => {
@@ -83,6 +91,24 @@ export function TransactionModal({ open, onOpenChange, transaction }: Transactio
     }
   }, [form.watch('description')])
 
+  // Auto-fill value and desc when an installment is selected
+  useEffect(() => {
+    const selectedInstId = form.watch('debtInstallmentId')
+    if (selectedInstId && selectedInstId !== 'none' && !transaction) {
+      const inst = pendingInstallments.find((i) => i.id === selectedInstId)
+      if (inst) {
+        const debt = debts.find((d) => d.id === inst.debtId)
+        form.setValue('value', inst.amount.toString())
+        if (debt && !form.getValues('description')) {
+          form.setValue(
+            'description',
+            `Parcela ${inst.installmentNumber}/${debt.totalInstallments} - ${debt.creditor}`,
+          )
+        }
+      }
+    }
+  }, [form.watch('debtInstallmentId')])
+
   const onSubmit = (data: any) => {
     const payload: any = {
       id: transaction ? transaction.id : Math.random().toString(36).substring(7),
@@ -91,9 +117,9 @@ export function TransactionModal({ open, onOpenChange, transaction }: Transactio
       paymentDate: new Date(data.date).toISOString(),
       competenceDate: new Date(data.date).toISOString(),
       status: 'CONFIRMED',
+      debtInstallmentId: data.debtInstallmentId === 'none' ? undefined : data.debtInstallmentId,
     }
 
-    // Always learn mapping from confirmed user input for persistent AI evolution
     if (data.description && data.categoryId) {
       learnAiMapping(data.description, data.categoryId)
     }
@@ -146,6 +172,48 @@ export function TransactionModal({ open, onOpenChange, transaction }: Transactio
                 )}
               />
             </div>
+
+            {form.watch('type') === 'OUT' && (
+              <FormField
+                control={form.control}
+                name="debtInstallmentId"
+                render={({ field }) => (
+                  <FormItem className="col-span-2 animate-in fade-in slide-in-from-top-1">
+                    <FormLabel>Vincular a parcela de dívida/financiamento (Opcional)</FormLabel>
+                    <Select
+                      onValueChange={(val) => field.onChange(val)}
+                      value={field.value || 'none'}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione uma parcela pendente" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="none">Não vincular</SelectItem>
+                        {pendingInstallments.map((i) => {
+                          const debt = debts.find((d) => d.id === i.debtId)
+                          return (
+                            <SelectItem key={i.id} value={i.id}>
+                              {debt?.creditor} - {debt?.description} | Parcela {i.installmentNumber}
+                              /{debt?.totalInstallments} ({formatCurrency(i.amount)})
+                            </SelectItem>
+                          )
+                        })}
+                        {transaction?.debtInstallmentId &&
+                          !pendingInstallments.find(
+                            (i) => i.id === transaction.debtInstallmentId,
+                          ) && (
+                            <SelectItem value={transaction.debtInstallmentId} disabled>
+                              Parcela vinculada atual (Já Paga)
+                            </SelectItem>
+                          )}
+                      </SelectContent>
+                    </Select>
+                  </FormItem>
+                )}
+              />
+            )}
 
             <FormField
               control={form.control}

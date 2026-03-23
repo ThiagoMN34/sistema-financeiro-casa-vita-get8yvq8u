@@ -7,6 +7,7 @@ import Index from './pages/Index'
 import Transactions from './pages/Transactions'
 import Import from './pages/Import'
 import Reports from './pages/Reports'
+import Debts from './pages/Debts'
 import Categories from './pages/Categories'
 import Accounts from './pages/Accounts'
 import NotFound from './pages/NotFound'
@@ -40,6 +41,7 @@ const App = () => (
                 <Route path="/transactions" element={<Transactions />} />
                 <Route path="/import" element={<Import />} />
                 <Route path="/reports" element={<Reports />} />
+                <Route path="/debts" element={<Debts />} />
                 <Route path="/categories" element={<Categories />} />
                 <Route path="/accounts" element={<Accounts />} />
               </Route>

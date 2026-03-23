@@ -37,6 +37,28 @@ export interface Transaction {
   type: TransactionType
   status: 'PENDING' | 'CONFIRMED'
   aiConfidence?: ConfidenceLevel
+  debtInstallmentId?: string
+}
+
+export interface Debt {
+  id: string
+  companyId: string
+  description: string
+  creditor: string
+  totalAmount: number
+  totalInstallments: number
+  startDate: string
+  status: 'ACTIVE' | 'COMPLETED'
+}
+
+export interface DebtInstallment {
+  id: string
+  debtId: string
+  installmentNumber: number
+  dueDate: string
+  amount: number
+  status: 'PENDING' | 'PAID'
+  transactionId?: string
 }
 
 interface DateRange {
@@ -55,6 +77,8 @@ interface FinanceContextData {
   categories: Category[]
   accounts: Account[]
   companies: Company[]
+  debts: Debt[]
+  debtInstallments: DebtInstallment[]
   filters: Filters
   setFilters: React.Dispatch<React.SetStateAction<Filters>>
   addTransaction: (t: Transaction) => void
@@ -62,6 +86,8 @@ interface FinanceContextData {
   deleteTransaction: (id: string) => void
   addCategory: (c: Category) => void
   updateAccount: (id: string, updates: Partial<Account>) => void
+  addDebt: (d: Omit<Debt, 'id'>, installments: Omit<DebtInstallment, 'id' | 'debtId'>[]) => void
+  deleteDebt: (id: string) => void
   filteredTransactions: Transaction[]
   pendingTransactions: Transaction[]
   summary: { balance: number; revenue: number; expenses: number; net: number }
@@ -86,6 +112,8 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [categories, setCategories] = useState<Category[]>([])
   const [accounts, setAccounts] = useState<Account[]>([])
   const [companies, setCompanies] = useState<Company[]>([])
+  const [debts, setDebts] = useState<Debt[]>([])
+  const [debtInstallments, setDebtInstallments] = useState<DebtInstallment[]>([])
   const [filters, setFilters] = useState<Filters>(initialFilters)
   const [aiDictionary, setAiDictionary] = useState<Record<string, string>>({})
 
@@ -93,13 +121,14 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     if (!session) return
 
     const fetchData = async () => {
-      const [comps, accs, cats, txs, patterns] = await Promise.all([
+      const [comps, accs, cats, txs, patterns, debtsRes, instsRes] = await Promise.all([
         supabase.from('companies').select('*'),
         supabase.from('accounts').select('*'),
         supabase.from('categories').select('*'),
         supabase.from('transactions').select('*').order('payment_date', { ascending: false }),
-        // @ts-expect-error - Table dynamically created via migration
         supabase.from('ai_patterns').select('*'),
+        supabase.from('debts').select('*').order('created_at', { ascending: false }),
+        supabase.from('debt_installments').select('*').order('due_date', { ascending: true }),
       ])
 
       if (comps.data) setCompanies(comps.data.map((c) => ({ id: c.id, name: c.name })))
@@ -135,6 +164,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
             type: t.type as TransactionType,
             status: t.status as any,
             aiConfidence: t.ai_confidence as any,
+            debtInstallmentId: t.debt_installment_id || undefined,
           })),
         )
       }
@@ -144,6 +174,33 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
           dict[p.keyword] = p.category_id
         })
         setAiDictionary(dict)
+      }
+      if (debtsRes.data) {
+        setDebts(
+          debtsRes.data.map((d: any) => ({
+            id: d.id,
+            companyId: d.company_id,
+            description: d.description,
+            creditor: d.creditor,
+            totalAmount: Number(d.total_amount),
+            totalInstallments: d.total_installments,
+            startDate: d.start_date,
+            status: d.status,
+          })),
+        )
+      }
+      if (instsRes.data) {
+        setDebtInstallments(
+          instsRes.data.map((i: any) => ({
+            id: i.id,
+            debtId: i.debt_id,
+            installmentNumber: i.installment_number,
+            dueDate: i.due_date,
+            amount: Number(i.amount),
+            status: i.status,
+            transactionId: i.transaction_id || undefined,
+          })),
+        )
       }
     }
 
@@ -193,6 +250,14 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const newTx = { ...t, id: t.id || Math.random().toString(36).substring(7) }
     setTransactions((prev) => [newTx, ...prev])
 
+    if (t.debtInstallmentId) {
+      setDebtInstallments((prev) =>
+        prev.map((i) =>
+          i.id === t.debtInstallmentId ? { ...i, status: 'PAID', transactionId: newTx.id } : i,
+        ),
+      )
+    }
+
     const { data } = await supabase
       .from('transactions')
       .insert({
@@ -207,6 +272,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         type: t.type,
         status: t.status,
         ai_confidence: t.aiConfidence,
+        debt_installment_id: t.debtInstallmentId || null,
       })
       .select()
       .single()
@@ -215,11 +281,40 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       setTransactions((prev) =>
         prev.map((pt) => (pt.id === newTx.id ? { ...newTx, id: data.id } : pt)),
       )
+      if (t.debtInstallmentId) {
+        setDebtInstallments((prev) =>
+          prev.map((i) => (i.id === t.debtInstallmentId ? { ...i, transactionId: data.id } : i)),
+        )
+      }
     }
   }, [])
 
   const updateTransaction = useCallback(async (id: string, updates: Partial<Transaction>) => {
-    setTransactions((prev) => prev.map((t) => (t.id === id ? { ...t, ...updates } : t)))
+    setTransactions((prev) => {
+      const oldTx = prev.find((t) => t.id === id)
+      if (
+        oldTx &&
+        updates.debtInstallmentId !== undefined &&
+        oldTx.debtInstallmentId !== updates.debtInstallmentId
+      ) {
+        setDebtInstallments((prevInsts) =>
+          prevInsts.map((i) => {
+            if (i.id === oldTx.debtInstallmentId)
+              return { ...i, status: 'PENDING', transactionId: undefined }
+            if (i.id === updates.debtInstallmentId)
+              return { ...i, status: 'PAID', transactionId: id }
+            return i
+          }),
+        )
+      } else if (updates.debtInstallmentId !== undefined && !oldTx?.debtInstallmentId) {
+        setDebtInstallments((prevInsts) =>
+          prevInsts.map((i) =>
+            i.id === updates.debtInstallmentId ? { ...i, status: 'PAID', transactionId: id } : i,
+          ),
+        )
+      }
+      return prev.map((t) => (t.id === id ? { ...t, ...updates } : t))
+    })
 
     const payload: any = {}
     if (updates.competenceDate) payload.competence_date = updates.competenceDate
@@ -233,12 +328,26 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     if (updates.type) payload.type = updates.type
     if (updates.status) payload.status = updates.status
     if (updates.aiConfidence !== undefined) payload.ai_confidence = updates.aiConfidence
+    if (updates.debtInstallmentId !== undefined)
+      payload.debt_installment_id = updates.debtInstallmentId || null
 
     await supabase.from('transactions').update(payload).eq('id', id)
   }, [])
 
   const deleteTransaction = useCallback(async (id: string) => {
-    setTransactions((prev) => prev.filter((t) => t.id !== id))
+    setTransactions((prev) => {
+      const oldTx = prev.find((t) => t.id === id)
+      if (oldTx?.debtInstallmentId) {
+        setDebtInstallments((prevInsts) =>
+          prevInsts.map((i) =>
+            i.id === oldTx.debtInstallmentId
+              ? { ...i, status: 'PENDING', transactionId: undefined }
+              : i,
+          ),
+        )
+      }
+      return prev.filter((t) => t.id !== id)
+    })
     await supabase.from('transactions').delete().eq('id', id)
   }, [])
 
@@ -267,6 +376,66 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     await supabase.from('accounts').update(payload).eq('id', id)
   }, [])
 
+  const addDebt = useCallback(
+    async (d: Omit<Debt, 'id'>, installments: Omit<DebtInstallment, 'id' | 'debtId'>[]) => {
+      const tempId = `temp-${Date.now()}`
+      const newDebt: Debt = { ...d, id: tempId }
+
+      setDebts((prev) => [newDebt, ...prev])
+
+      const { data: debtData } = await supabase
+        .from('debts')
+        .insert({
+          company_id: d.companyId,
+          description: d.description,
+          creditor: d.creditor,
+          total_amount: d.totalAmount,
+          total_installments: d.totalInstallments,
+          start_date: d.startDate,
+          status: d.status,
+        })
+        .select()
+        .single()
+
+      if (debtData) {
+        setDebts((prev) => prev.map((p) => (p.id === tempId ? { ...p, id: debtData.id } : p)))
+
+        const { data: instData } = await supabase
+          .from('debt_installments')
+          .insert(
+            installments.map((i) => ({
+              debt_id: debtData.id,
+              installment_number: i.installmentNumber,
+              due_date: i.dueDate,
+              amount: i.amount,
+              status: i.status,
+            })),
+          )
+          .select()
+
+        if (instData) {
+          const newInsts = instData.map((i) => ({
+            id: i.id,
+            debtId: i.debt_id,
+            installmentNumber: i.installment_number,
+            dueDate: i.due_date,
+            amount: Number(i.amount),
+            status: i.status as any,
+            transactionId: i.transaction_id || undefined,
+          }))
+          setDebtInstallments((prev) => [...newInsts, ...prev])
+        }
+      }
+    },
+    [],
+  )
+
+  const deleteDebt = useCallback(async (id: string) => {
+    setDebts((prev) => prev.filter((d) => d.id !== id))
+    setDebtInstallments((prev) => prev.filter((i) => i.debtId !== id))
+    await supabase.from('debts').delete().eq('id', id)
+  }, [])
+
   const aiSuggestCategory = useCallback(
     (description: string) => {
       const descClean = description
@@ -280,7 +449,6 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         return { categoryId: categories[0]?.id || 'c13', confidence: 'low' as const }
       }
 
-      // 1. Exact or partial match in learned dictionary (longest match first)
       const patterns = Object.entries(aiDictionary).sort((a, b) => b[0].length - a[0].length)
       for (const [keyword, catId] of patterns) {
         if (descClean.includes(keyword)) {
@@ -288,13 +456,11 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         }
       }
 
-      // 2. Historical similarity (check recent transactions for common keywords)
       const words = descClean.split(' ').filter((w) => w.length > 2)
       if (words.length > 0) {
         let bestMatchCat = null
         let bestScore = 0
 
-        // Limit to 500 recent transactions for performance
         const recentTxs = transactions.slice(0, 500)
 
         for (const tx of recentTxs) {
@@ -310,7 +476,6 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
             if (txDescClean.includes(w)) score++
           }
 
-          // Require at least 60% word overlap for medium confidence
           const requiredScore = Math.max(1, Math.ceil(words.length * 0.6))
           if (score > bestScore && score >= requiredScore) {
             bestScore = score
@@ -323,7 +488,6 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         }
       }
 
-      // Fallback
       const defaultCat = categories.find((c) => c.name.toLowerCase().includes('outras despesas'))
       return {
         categoryId: defaultCat?.id || categories[0]?.id || 'c13',
@@ -345,7 +509,6 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     setAiDictionary((prev) => ({ ...prev, [keyword]: categoryId }))
 
-    // @ts-expect-error - Table dynamically created via migration
     await supabase
       .from('ai_patterns')
       .upsert({ keyword, category_id: categoryId }, { onConflict: 'keyword' })
@@ -359,6 +522,8 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         categories,
         accounts,
         companies,
+        debts,
+        debtInstallments,
         filters,
         setFilters,
         addTransaction,
@@ -366,6 +531,8 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         deleteTransaction,
         addCategory,
         updateAccount,
+        addDebt,
+        deleteDebt,
         filteredTransactions,
         pendingTransactions,
         summary,

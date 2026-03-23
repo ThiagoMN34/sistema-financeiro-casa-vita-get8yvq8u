@@ -7,6 +7,7 @@ import {
   UploadCloud,
   Building2,
   BarChart3,
+  Banknote,
 } from 'lucide-react'
 import {
   Sidebar,
@@ -26,6 +27,7 @@ const navigation = [
   { name: 'Lançamentos', to: '/transactions', icon: ReceiptText },
   { name: 'Importar Extrato', to: '/import', icon: UploadCloud },
   { name: 'Relatórios', to: '/reports', icon: BarChart3 },
+  { name: 'Dívidas', to: '/debts', icon: Banknote },
   { name: 'Categorias', to: '/categories', icon: Tags },
   { name: 'Contas Bancárias', to: '/accounts', icon: Landmark },
 ]

@@ -10,25 +10,43 @@ import Categories from './pages/Categories'
 import Accounts from './pages/Accounts'
 import NotFound from './pages/NotFound'
 import { FinanceProvider } from './contexts/FinanceContext'
+import { AuthProvider, useAuth } from './hooks/use-auth'
+import Login from './pages/Login'
+
+const AuthWrapper = ({ children }: { children: React.ReactNode }) => {
+  const { session, loading } = useAuth()
+  if (loading)
+    return (
+      <div className="min-h-screen flex items-center justify-center text-muted-foreground">
+        Carregando...
+      </div>
+    )
+  if (!session) return <Login />
+  return <>{children}</>
+}
 
 const App = () => (
   <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-    <FinanceProvider>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner position="top-right" />
-        <Routes>
-          <Route element={<Layout />}>
-            <Route path="/" element={<Index />} />
-            <Route path="/transactions" element={<Transactions />} />
-            <Route path="/import" element={<Import />} />
-            <Route path="/categories" element={<Categories />} />
-            <Route path="/accounts" element={<Accounts />} />
-          </Route>
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </TooltipProvider>
-    </FinanceProvider>
+    <AuthProvider>
+      <AuthWrapper>
+        <FinanceProvider>
+          <TooltipProvider>
+            <Toaster />
+            <Sonner position="top-right" />
+            <Routes>
+              <Route element={<Layout />}>
+                <Route path="/" element={<Index />} />
+                <Route path="/transactions" element={<Transactions />} />
+                <Route path="/import" element={<Import />} />
+                <Route path="/categories" element={<Categories />} />
+                <Route path="/accounts" element={<Accounts />} />
+              </Route>
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </TooltipProvider>
+        </FinanceProvider>
+      </AuthWrapper>
+    </AuthProvider>
   </BrowserRouter>
 )
 

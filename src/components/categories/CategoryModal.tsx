@@ -18,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { useFinance } from '@/contexts/FinanceContext'
+import { useFinance, Category } from '@/contexts/FinanceContext'
 import {
   Form,
   FormControl,
@@ -27,7 +27,6 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
-import { Category } from '@/data/mockData'
 import { useToast } from '@/hooks/use-toast'
 
 const formSchema = z.object({

@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { Link } from 'react-router-dom'
-import { useFinance } from '@/contexts/FinanceContext'
+import { useFinance, Transaction } from '@/contexts/FinanceContext'
 import { Card, CardContent } from '@/components/ui/card'
 import {
   Table,
@@ -16,7 +16,6 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Search, Plus, Edit2, Bot, Trash2, UploadCloud } from 'lucide-react'
 import { TransactionModal } from '@/components/transactions/TransactionModal'
-import { Transaction } from '@/data/mockData'
 import { useToast } from '@/hooks/use-toast'
 import {
   AlertDialog,

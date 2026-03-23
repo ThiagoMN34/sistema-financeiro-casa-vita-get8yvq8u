@@ -16,18 +16,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { useFinance } from '@/contexts/FinanceContext'
-import { Transaction } from '@/data/mockData'
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from '@/components/ui/form'
+import { useFinance, Transaction } from '@/contexts/FinanceContext'
+import { Form, FormControl, FormField, FormItem, FormLabel } from '@/components/ui/form'
 import { Badge } from '@/components/ui/badge'
-import { Bot, Check, AlertTriangle } from 'lucide-react'
+import { Bot } from 'lucide-react'
 
 interface TransactionModalProps {
   open: boolean
@@ -73,12 +65,12 @@ export function TransactionModal({ open, onOpenChange, transaction }: Transactio
         type: 'OUT',
         date: new Date().toISOString().split('T')[0],
         categoryId: '',
-        companyId: companies[0]?.id,
-        accountId: accounts[0]?.id,
+        companyId: companies[0]?.id || '',
+        accountId: accounts[0]?.id || '',
         nfNumber: '',
       })
     }
-  }, [transaction, open])
+  }, [transaction, open, companies, accounts])
 
   // AI Simulation Effect
   useEffect(() => {
@@ -93,7 +85,7 @@ export function TransactionModal({ open, onOpenChange, transaction }: Transactio
 
   const onSubmit = (data: any) => {
     const payload: any = {
-      id: transaction ? transaction.id : Math.random().toString(36).substr(2, 9),
+      id: transaction ? transaction.id : Math.random().toString(36).substring(7),
       ...data,
       value: Number(data.value),
       paymentDate: new Date(data.date).toISOString(),

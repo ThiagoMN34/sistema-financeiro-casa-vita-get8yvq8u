@@ -1,15 +1,43 @@
-import React, { createContext, useContext, useState, useMemo, useCallback } from 'react'
-import {
-  Transaction,
-  Category,
-  Account,
-  Company,
-  MOCK_CATEGORIES,
-  MOCK_ACCOUNTS,
-  MOCK_COMPANIES,
-  MOCK_TRANSACTIONS,
-} from '@/data/mockData'
+import React, { createContext, useContext, useState, useMemo, useCallback, useEffect } from 'react'
 import { startOfMonth, endOfMonth, isWithinInterval } from 'date-fns'
+import { supabase } from '@/lib/supabase/client'
+import { useAuth } from '@/hooks/use-auth'
+
+export type TransactionType = 'IN' | 'OUT'
+export type ConfidenceLevel = 'high' | 'medium' | 'low'
+
+export interface Category {
+  id: string
+  name: string
+  type: TransactionType | 'BOTH'
+}
+
+export interface Company {
+  id: string
+  name: string
+}
+
+export interface Account {
+  id: string
+  companyId: string
+  name: string
+  initialBalance: number
+}
+
+export interface Transaction {
+  id: string
+  competenceDate: string
+  paymentDate: string
+  companyId: string
+  accountId: string
+  categoryId: string
+  description: string
+  nfNumber?: string
+  value: number
+  type: TransactionType
+  status: 'PENDING' | 'CONFIRMED'
+  aiConfidence?: ConfidenceLevel
+}
 
 interface DateRange {
   from: Date
@@ -53,10 +81,11 @@ const initialFilters: Filters = {
 }
 
 export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [transactions, setTransactions] = useState<Transaction[]>(MOCK_TRANSACTIONS)
-  const [categories, setCategories] = useState<Category[]>(MOCK_CATEGORIES)
-  const [accounts, setAccounts] = useState<Account[]>(MOCK_ACCOUNTS)
-  const [companies] = useState<Company[]>(MOCK_COMPANIES)
+  const { session } = useAuth()
+  const [transactions, setTransactions] = useState<Transaction[]>([])
+  const [categories, setCategories] = useState<Category[]>([])
+  const [accounts, setAccounts] = useState<Account[]>([])
+  const [companies, setCompanies] = useState<Company[]>([])
   const [filters, setFilters] = useState<Filters>(initialFilters)
   const [aiDictionary, setAiDictionary] = useState<Record<string, string>>({
     neoenergia: 'c4',
@@ -66,6 +95,58 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     folha: 'c8',
     salario: 'c8',
   })
+
+  useEffect(() => {
+    if (!session) return
+
+    const fetchData = async () => {
+      const [comps, accs, cats, txs] = await Promise.all([
+        supabase.from('companies').select('*'),
+        supabase.from('accounts').select('*'),
+        supabase.from('categories').select('*'),
+        supabase.from('transactions').select('*').order('payment_date', { ascending: false }),
+      ])
+
+      if (comps.data) setCompanies(comps.data.map((c) => ({ id: c.id, name: c.name })))
+      if (accs.data)
+        setAccounts(
+          accs.data.map((a) => ({
+            id: a.id,
+            companyId: a.company_id,
+            name: a.name,
+            initialBalance: Number(a.initial_balance),
+          })),
+        )
+      if (cats.data)
+        setCategories(
+          cats.data.map((c) => ({
+            id: c.id,
+            name: c.name,
+            type: c.type as any,
+          })),
+        )
+      if (txs.data) {
+        setTransactions(
+          txs.data.map((t) => ({
+            id: t.id,
+            competenceDate: t.competence_date,
+            paymentDate: t.payment_date,
+            companyId: t.company_id,
+            accountId: t.account_id,
+            categoryId: t.category_id,
+            description: t.description,
+            nfNumber: t.nf_number || undefined,
+            value: Number(t.value),
+            type: t.type as TransactionType,
+            status: t.status as any,
+            aiConfidence: t.ai_confidence as any,
+          })),
+        )
+      }
+    }
+
+    fetchData()
+  }, [session])
 
   const filteredTransactions = useMemo(() => {
     return transactions
@@ -106,24 +187,82 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     return { balance, revenue, expenses, net }
   }, [filteredTransactions, accounts, filters])
 
-  const addTransaction = useCallback((t: Transaction) => {
-    setTransactions((prev) => [...prev, t])
+  const addTransaction = useCallback(async (t: Transaction) => {
+    const newTx = { ...t, id: t.id || Math.random().toString(36).substring(7) }
+    setTransactions((prev) => [newTx, ...prev])
+
+    const { data } = await supabase
+      .from('transactions')
+      .insert({
+        competence_date: t.competenceDate,
+        payment_date: t.paymentDate,
+        company_id: t.companyId,
+        account_id: t.accountId,
+        category_id: t.categoryId,
+        description: t.description,
+        nf_number: t.nfNumber,
+        value: t.value,
+        type: t.type,
+        status: t.status,
+        ai_confidence: t.aiConfidence,
+      })
+      .select()
+      .single()
+
+    if (data) {
+      setTransactions((prev) =>
+        prev.map((pt) => (pt.id === newTx.id ? { ...newTx, id: data.id } : pt)),
+      )
+    }
   }, [])
 
-  const updateTransaction = useCallback((id: string, updates: Partial<Transaction>) => {
+  const updateTransaction = useCallback(async (id: string, updates: Partial<Transaction>) => {
     setTransactions((prev) => prev.map((t) => (t.id === id ? { ...t, ...updates } : t)))
+
+    const payload: any = {}
+    if (updates.competenceDate) payload.competence_date = updates.competenceDate
+    if (updates.paymentDate) payload.payment_date = updates.paymentDate
+    if (updates.companyId) payload.company_id = updates.companyId
+    if (updates.accountId) payload.account_id = updates.accountId
+    if (updates.categoryId) payload.category_id = updates.categoryId
+    if (updates.description) payload.description = updates.description
+    if (updates.nfNumber !== undefined) payload.nf_number = updates.nfNumber
+    if (updates.value !== undefined) payload.value = updates.value
+    if (updates.type) payload.type = updates.type
+    if (updates.status) payload.status = updates.status
+    if (updates.aiConfidence !== undefined) payload.ai_confidence = updates.aiConfidence
+
+    await supabase.from('transactions').update(payload).eq('id', id)
   }, [])
 
-  const deleteTransaction = useCallback((id: string) => {
+  const deleteTransaction = useCallback(async (id: string) => {
     setTransactions((prev) => prev.filter((t) => t.id !== id))
+    await supabase.from('transactions').delete().eq('id', id)
   }, [])
 
-  const addCategory = useCallback((c: Category) => {
+  const addCategory = useCallback(async (c: Category) => {
     setCategories((prev) => [...prev, c])
+    const { data } = await supabase
+      .from('categories')
+      .insert({
+        name: c.name,
+        type: c.type,
+      })
+      .select()
+      .single()
+    if (data) {
+      setCategories((prev) => prev.map((pc) => (pc.id === c.id ? { ...pc, id: data.id } : pc)))
+    }
   }, [])
 
-  const updateAccount = useCallback((id: string, updates: Partial<Account>) => {
+  const updateAccount = useCallback(async (id: string, updates: Partial<Account>) => {
     setAccounts((prev) => prev.map((a) => (a.id === id ? { ...a, ...updates } : a)))
+
+    const payload: any = {}
+    if (updates.initialBalance !== undefined) payload.initial_balance = updates.initialBalance
+    if (updates.name !== undefined) payload.name = updates.name
+
+    await supabase.from('accounts').update(payload).eq('id', id)
   }, [])
 
   const aiSuggestCategory = useCallback(
@@ -134,9 +273,13 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
           return { categoryId: catId, confidence: 'high' as const }
         }
       }
-      return { categoryId: 'c13', confidence: 'low' as const } // Default / Outros
+      const defaultCat = categories.find((c) => c.name.toLowerCase().includes('outras despesas'))
+      return {
+        categoryId: defaultCat?.id || categories[0]?.id || 'c13',
+        confidence: 'low' as const,
+      }
     },
-    [aiDictionary],
+    [aiDictionary, categories],
   )
 
   const learnAiMapping = useCallback((keyword: string, categoryId: string) => {

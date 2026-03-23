@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { useFinance } from '@/contexts/FinanceContext'
 import { Card, CardContent } from '@/components/ui/card'
@@ -30,7 +30,8 @@ import {
 } from '@/components/ui/alert-dialog'
 
 export default function Transactions() {
-  const { filteredTransactions, categories, companies, accounts, deleteTransaction } = useFinance()
+  const { filteredTransactions, categories, companies, accounts, deleteTransaction, summary } =
+    useFinance()
   const { toast } = useToast()
   const [searchTerm, setSearchTerm] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
@@ -38,7 +39,20 @@ export default function Transactions() {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false)
   const [txToDelete, setTxToDelete] = useState<Transaction | null>(null)
 
-  const displayData = filteredTransactions.filter(
+  const transactionsWithBalance = useMemo(() => {
+    let currentBalance = summary.balance
+    return filteredTransactions.map((tx) => {
+      const runningBalance = currentBalance
+      if (tx.type === 'IN') {
+        currentBalance -= tx.value
+      } else {
+        currentBalance += tx.value
+      }
+      return { ...tx, runningBalance }
+    })
+  }, [filteredTransactions, summary.balance])
+
+  const displayData = transactionsWithBalance.filter(
     (t) =>
       t.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
       t.nfNumber?.toLowerCase().includes(searchTerm.toLowerCase()),
@@ -109,13 +123,14 @@ export default function Transactions() {
                 <TableHead className="hidden md:table-cell">Categoria</TableHead>
                 <TableHead className="hidden lg:table-cell">Empresa / Conta</TableHead>
                 <TableHead className="text-right">Valor</TableHead>
+                <TableHead className="text-right">Saldo</TableHead>
                 <TableHead className="w-[100px]"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {displayData.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
+                  <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
                     Nenhum lançamento encontrado.
                   </TableCell>
                 </TableRow>
@@ -162,6 +177,9 @@ export default function Transactions() {
                     >
                       {tx.type === 'OUT' ? '-' : '+'}
                       {formatCurrency(tx.value)}
+                    </TableCell>
+                    <TableCell className="text-right font-medium text-slate-600">
+                      {formatCurrency(tx.runningBalance)}
                     </TableCell>
                     <TableCell>
                       <div className="flex justify-end items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">

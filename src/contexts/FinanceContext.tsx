@@ -69,6 +69,13 @@ export interface Shift {
   amount: number
   status: 'PENDING' | 'AUTHORIZED' | 'PAID'
   transactionId?: string
+  shiftType?: string
+  guestName?: string
+  reason?: string
+  authorizedBy?: string
+  checkInTime?: string
+  latitude?: number
+  longitude?: number
 }
 
 interface DateRange {
@@ -157,6 +164,13 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
               amount: Number(s.amount),
               status: s.status,
               transactionId: s.transaction_id || undefined,
+              shiftType: s.shift_type || undefined,
+              guestName: s.guest_name || undefined,
+              reason: s.reason || undefined,
+              authorizedBy: s.authorized_by || undefined,
+              checkInTime: s.check_in_time || undefined,
+              latitude: s.latitude ? Number(s.latitude) : undefined,
+              longitude: s.longitude ? Number(s.longitude) : undefined,
             })),
           )
         }
@@ -259,6 +273,13 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
             amount: Number(s.amount),
             status: s.status,
             transactionId: s.transaction_id || undefined,
+            shiftType: s.shift_type || undefined,
+            guestName: s.guest_name || undefined,
+            reason: s.reason || undefined,
+            authorizedBy: s.authorized_by || undefined,
+            checkInTime: s.check_in_time || undefined,
+            latitude: s.latitude ? Number(s.latitude) : undefined,
+            longitude: s.longitude ? Number(s.longitude) : undefined,
           })),
         )
       }
@@ -509,6 +530,13 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         date: s.date,
         amount: s.amount,
         status: s.status,
+        shift_type: s.shiftType,
+        guest_name: s.guestName,
+        reason: s.reason,
+        authorized_by: s.authorizedBy,
+        check_in_time: s.checkInTime,
+        latitude: s.latitude,
+        longitude: s.longitude,
       })
       .select()
       .single()
@@ -525,6 +553,13 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 amount: Number(data.amount),
                 status: data.status,
                 transactionId: data.transaction_id || undefined,
+                shiftType: data.shift_type || undefined,
+                guestName: data.guest_name || undefined,
+                reason: data.reason || undefined,
+                authorizedBy: data.authorized_by || undefined,
+                checkInTime: data.check_in_time || undefined,
+                latitude: data.latitude ? Number(data.latitude) : undefined,
+                longitude: data.longitude ? Number(data.longitude) : undefined,
               }
             : ps,
         ),
@@ -541,6 +576,10 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     if (updates.amount !== undefined) payload.amount = updates.amount
     if (updates.status) payload.status = updates.status
     if (updates.transactionId !== undefined) payload.transaction_id = updates.transactionId
+    if (updates.shiftType !== undefined) payload.shift_type = updates.shiftType
+    if (updates.guestName !== undefined) payload.guest_name = updates.guestName
+    if (updates.reason !== undefined) payload.reason = updates.reason
+    if (updates.authorizedBy !== undefined) payload.authorized_by = updates.authorizedBy
 
     await supabase
       .from('shifts' as any)

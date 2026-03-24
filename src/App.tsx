@@ -12,9 +12,10 @@ import Categories from './pages/Categories'
 import Accounts from './pages/Accounts'
 import Shifts from './pages/Shifts'
 import NotFound from './pages/NotFound'
+import Login from './pages/Login'
+import ShiftCheckIn from './pages/ShiftCheckIn'
 import { FinanceProvider } from './contexts/FinanceContext'
 import { AuthProvider, useAuth } from './hooks/use-auth'
-import Login from './pages/Login'
 
 const AuthWrapper = ({ children }: { children: React.ReactNode }) => {
   const { session, profile, loading } = useAuth()
@@ -58,76 +59,81 @@ const RoleGuard = ({
 const App = () => (
   <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
     <AuthProvider>
-      <AuthWrapper>
-        <FinanceProvider>
-          <TooltipProvider>
-            <Toaster />
-            <Sonner position="top-right" />
-            <Routes>
-              <Route element={<Layout />}>
-                <Route
-                  path="/"
-                  element={
-                    <RoleGuard allowedRoles={['ADMIN']}>
-                      <Index />
-                    </RoleGuard>
-                  }
-                />
-                <Route
-                  path="/transactions"
-                  element={
-                    <RoleGuard allowedRoles={['ADMIN']}>
-                      <Transactions />
-                    </RoleGuard>
-                  }
-                />
-                <Route
-                  path="/import"
-                  element={
-                    <RoleGuard allowedRoles={['ADMIN']}>
-                      <Import />
-                    </RoleGuard>
-                  }
-                />
-                <Route path="/shifts" element={<Shifts />} />
-                <Route
-                  path="/reports"
-                  element={
-                    <RoleGuard allowedRoles={['ADMIN']}>
-                      <Reports />
-                    </RoleGuard>
-                  }
-                />
-                <Route
-                  path="/debts"
-                  element={
-                    <RoleGuard allowedRoles={['ADMIN']}>
-                      <Debts />
-                    </RoleGuard>
-                  }
-                />
-                <Route
-                  path="/categories"
-                  element={
-                    <RoleGuard allowedRoles={['ADMIN']}>
-                      <Categories />
-                    </RoleGuard>
-                  }
-                />
-                <Route
-                  path="/accounts"
-                  element={
-                    <RoleGuard allowedRoles={['ADMIN']}>
-                      <Accounts />
-                    </RoleGuard>
-                  }
-                />
-              </Route>
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </TooltipProvider>
-        </FinanceProvider>
-      </AuthWrapper>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner position="top-right" />
+        <Routes>
+          <Route path="/check-in" element={<ShiftCheckIn />} />
+          <Route
+            element={
+              <AuthWrapper>
+                <FinanceProvider>
+                  <Layout />
+                </FinanceProvider>
+              </AuthWrapper>
+            }
+          >
+            <Route
+              path="/"
+              element={
+                <RoleGuard allowedRoles={['ADMIN']}>
+                  <Index />
+                </RoleGuard>
+              }
+            />
+            <Route
+              path="/transactions"
+              element={
+                <RoleGuard allowedRoles={['ADMIN']}>
+                  <Transactions />
+                </RoleGuard>
+              }
+            />
+            <Route
+              path="/import"
+              element={
+                <RoleGuard allowedRoles={['ADMIN']}>
+                  <Import />
+                </RoleGuard>
+              }
+            />
+            <Route path="/shifts" element={<Shifts />} />
+            <Route
+              path="/reports"
+              element={
+                <RoleGuard allowedRoles={['ADMIN']}>
+                  <Reports />
+                </RoleGuard>
+              }
+            />
+            <Route
+              path="/debts"
+              element={
+                <RoleGuard allowedRoles={['ADMIN']}>
+                  <Debts />
+                </RoleGuard>
+              }
+            />
+            <Route
+              path="/categories"
+              element={
+                <RoleGuard allowedRoles={['ADMIN']}>
+                  <Categories />
+                </RoleGuard>
+              }
+            />
+            <Route
+              path="/accounts"
+              element={
+                <RoleGuard allowedRoles={['ADMIN']}>
+                  <Accounts />
+                </RoleGuard>
+              }
+            />
+          </Route>
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </TooltipProvider>
     </AuthProvider>
   </BrowserRouter>
 )

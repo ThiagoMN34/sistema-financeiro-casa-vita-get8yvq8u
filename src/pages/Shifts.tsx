@@ -28,9 +28,13 @@ import {
   Pencil,
   CalendarDays,
   ListTodo,
+  QrCode,
+  MapPin,
+  Clock,
 } from 'lucide-react'
 import { ShiftModal } from '@/components/shifts/ShiftModal'
 import { PayShiftModal } from '@/components/shifts/PayShiftModal'
+import { QrCodeModal } from '@/components/shifts/QrCodeModal'
 import {
   Table,
   TableBody,
@@ -50,6 +54,7 @@ export default function Shifts() {
   const [activeTab, setActiveTab] = useState('calendar')
 
   const [modalOpen, setModalOpen] = useState(false)
+  const [qrModalOpen, setQrModalOpen] = useState(false)
   const [selectedShift, setSelectedShift] = useState<Shift | null>(null)
   const [selectedDateForNew, setSelectedDateForNew] = useState<string | null>(null)
 
@@ -107,9 +112,14 @@ export default function Shifts() {
             Controle de escalas extras, aprovações e pagamentos.
           </p>
         </div>
-        <Button onClick={() => handleNewShift()}>
-          <Plus className="h-4 w-4 mr-2" /> Novo Plantão
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" onClick={() => setQrModalOpen(true)}>
+            <QrCode className="h-4 w-4 mr-2" /> QR Code Check-in
+          </Button>
+          <Button onClick={() => handleNewShift()}>
+            <Plus className="h-4 w-4 mr-2" /> Novo Plantão
+          </Button>
+        </div>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -180,9 +190,9 @@ export default function Shifts() {
                                   ? 'bg-blue-50 text-blue-700 border-blue-100'
                                   : 'bg-amber-50 text-amber-700 border-amber-100'
                             }`}
-                            title={`${s.employeeName} - ${formatCurrency(s.amount)}`}
+                            title={`${s.employeeName} - ${s.shiftType || 'Manual'}`}
                           >
-                            {s.employeeName}
+                            {s.employeeName} {s.checkInTime && '📱'}
                           </div>
                         ))}
                         {dayShifts.length > 3 && (
@@ -233,7 +243,7 @@ export default function Shifts() {
                 <TableHeader className="bg-slate-50/80">
                   <TableRow>
                     <TableHead>Data</TableHead>
-                    <TableHead>Funcionário</TableHead>
+                    <TableHead>Funcionário / Tipo</TableHead>
                     <TableHead>Unidade</TableHead>
                     <TableHead className="text-right">Valor</TableHead>
                     <TableHead className="text-center">Status</TableHead>
@@ -250,9 +260,30 @@ export default function Shifts() {
                   ) : (
                     displayShifts.map((s) => (
                       <TableRow key={s.id}>
-                        <TableCell className="font-medium">{formatDate(s.date)}</TableCell>
-                        <TableCell className="font-semibold text-slate-800">
-                          {s.employeeName}
+                        <TableCell className="font-medium whitespace-nowrap">
+                          {formatDate(s.date)}
+                          {s.checkInTime && (
+                            <div className="text-[10px] text-slate-500 flex items-center gap-1 mt-0.5">
+                              <Clock className="w-3 h-3" />{' '}
+                              {format(new Date(s.checkInTime), 'HH:mm')}
+                            </div>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <div className="font-semibold text-slate-800 flex items-center gap-1">
+                            {s.employeeName}
+                            {s.latitude && (
+                              <MapPin
+                                className="w-3 h-3 text-emerald-500 inline-block"
+                                title="Localização Capturada"
+                              />
+                            )}
+                          </div>
+                          {s.shiftType && (
+                            <div className="text-xs text-muted-foreground mt-0.5">
+                              {s.shiftType} {s.guestName && ` - Hóspede: ${s.guestName}`}
+                            </div>
+                          )}
                         </TableCell>
                         <TableCell className="text-sm text-slate-500">
                           {companies.find((c) => c.id === s.companyId)?.name}
@@ -338,6 +369,7 @@ export default function Shifts() {
         selectedDate={selectedDateForNew}
       />
       <PayShiftModal open={payModalOpen} onOpenChange={setPayModalOpen} shift={shiftToPay} />
+      <QrCodeModal open={qrModalOpen} onOpenChange={setQrModalOpen} />
     </div>
   )
 }

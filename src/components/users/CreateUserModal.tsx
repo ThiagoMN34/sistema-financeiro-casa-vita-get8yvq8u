@@ -43,10 +43,12 @@ export function CreateUserModal({ open, onOpenChange, onSuccess }: CreateUserMod
     setLoading(false)
 
     if (error) {
+      console.error('Error creating user:', error)
       toast({
         variant: 'destructive',
         title: 'Erro ao criar usuário',
-        description: error.message || 'Verifique se o e-mail já está em uso.',
+        description:
+          error.message || 'Verifique se o e-mail já está em uso ou a senha atende aos requisitos.',
       })
       return
     }
@@ -83,8 +85,8 @@ export function CreateUserModal({ open, onOpenChange, onSuccess }: CreateUserMod
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              minLength={6}
-              placeholder="Min. 6 caracteres"
+              minLength={8}
+              placeholder="Mín. 8 caracteres"
             />
           </div>
           <div className="space-y-2">

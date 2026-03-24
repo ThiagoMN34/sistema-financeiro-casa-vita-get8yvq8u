@@ -38,10 +38,11 @@ export function PasswordUserModal({ open, onOpenChange, user }: PasswordUserModa
     setLoading(false)
 
     if (error) {
+      console.error('Error updating password:', error)
       toast({
         variant: 'destructive',
         title: 'Erro ao alterar senha',
-        description: error.message,
+        description: error.message || 'Verifique se a senha atende aos requisitos mínimos.',
       })
       return
     }
@@ -68,8 +69,8 @@ export function PasswordUserModal({ open, onOpenChange, user }: PasswordUserModa
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              minLength={6}
-              placeholder="Digite a nova senha"
+              minLength={8}
+              placeholder="Mín. 8 caracteres"
             />
           </div>
           <DialogFooter className="pt-4">

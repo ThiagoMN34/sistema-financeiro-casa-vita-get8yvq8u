@@ -27,10 +27,20 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
+import { DatePickerWithRange } from '@/components/ui/date-range-picker'
+import { startOfMonth, endOfMonth, subMonths, isSameDay, endOfDay } from 'date-fns'
 
 export default function Transactions() {
-  const { filteredTransactions, categories, companies, accounts, deleteTransaction, summary } =
-    useFinance()
+  const {
+    filteredTransactions,
+    categories,
+    companies,
+    accounts,
+    deleteTransaction,
+    summary,
+    filters,
+    setFilters,
+  } = useFinance()
   const { toast } = useToast()
   const [searchTerm, setSearchTerm] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
@@ -84,6 +94,58 @@ export default function Transactions() {
     }
   }
 
+  const today = new Date()
+  const currentMonthRange = useMemo(
+    () => ({ from: startOfMonth(today), to: endOfMonth(today) }),
+    [today],
+  )
+  const lastMonthRange = useMemo(() => {
+    const lastMonth = subMonths(today, 1)
+    return { from: startOfMonth(lastMonth), to: endOfMonth(lastMonth) }
+  }, [today])
+  const last6MonthsRange = useMemo(
+    () => ({ from: startOfMonth(subMonths(today, 5)), to: endOfMonth(today) }),
+    [today],
+  )
+  const allTimeRange = useMemo(
+    () => ({ from: new Date('2000-01-01'), to: new Date('2100-12-31') }),
+    [],
+  )
+
+  let activeFilter = 'custom'
+  if (filters.dateRange.from && filters.dateRange.to) {
+    if (
+      isSameDay(filters.dateRange.from, currentMonthRange.from) &&
+      isSameDay(filters.dateRange.to, currentMonthRange.to)
+    ) {
+      activeFilter = 'current_month'
+    } else if (
+      isSameDay(filters.dateRange.from, lastMonthRange.from) &&
+      isSameDay(filters.dateRange.to, lastMonthRange.to)
+    ) {
+      activeFilter = 'last_month'
+    } else if (
+      isSameDay(filters.dateRange.from, last6MonthsRange.from) &&
+      isSameDay(filters.dateRange.to, last6MonthsRange.to)
+    ) {
+      activeFilter = 'last_6_months'
+    } else if (
+      isSameDay(filters.dateRange.from, allTimeRange.from) &&
+      isSameDay(filters.dateRange.to, allTimeRange.to)
+    ) {
+      activeFilter = 'all_time'
+    }
+  }
+
+  const applyDateFilter = (filterType: string) => {
+    let newRange = currentMonthRange
+    if (filterType === 'last_month') newRange = lastMonthRange
+    else if (filterType === 'last_6_months') newRange = last6MonthsRange
+    else if (filterType === 'all_time') newRange = allTimeRange
+
+    setFilters((prev) => ({ ...prev, dateRange: newRange }))
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -92,15 +154,6 @@ export default function Transactions() {
           <p className="text-muted-foreground">Gerencie as transações do período.</p>
         </div>
         <div className="flex w-full sm:w-auto gap-2">
-          <div className="relative flex-1 sm:w-64">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Buscar descrição ou NF..."
-              className="pl-8 bg-white"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
           <Button variant="outline" asChild>
             <Link to="/import">
               <UploadCloud className="h-4 w-4 mr-2" /> Importar
@@ -109,6 +162,73 @@ export default function Transactions() {
           <Button onClick={handleNew}>
             <Plus className="h-4 w-4 mr-2" /> Novo
           </Button>
+        </div>
+      </div>
+
+      <div className="flex flex-col xl:flex-row gap-4 items-start xl:items-center justify-between bg-slate-50 p-3 rounded-lg border border-slate-100">
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant={activeFilter === 'current_month' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => applyDateFilter('current_month')}
+            className={activeFilter !== 'current_month' ? 'bg-white hover:bg-slate-100' : ''}
+          >
+            Mês atual
+          </Button>
+          <Button
+            variant={activeFilter === 'last_month' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => applyDateFilter('last_month')}
+            className={activeFilter !== 'last_month' ? 'bg-white hover:bg-slate-100' : ''}
+          >
+            Mês anterior
+          </Button>
+          <Button
+            variant={activeFilter === 'last_6_months' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => applyDateFilter('last_6_months')}
+            className={activeFilter !== 'last_6_months' ? 'bg-white hover:bg-slate-100' : ''}
+          >
+            Últimos 6 meses
+          </Button>
+          <Button
+            variant={activeFilter === 'all_time' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => applyDateFilter('all_time')}
+            className={activeFilter !== 'all_time' ? 'bg-white hover:bg-slate-100' : ''}
+          >
+            Todo o período
+          </Button>
+        </div>
+
+        <div className="flex flex-col sm:flex-row items-center gap-2 w-full xl:w-auto">
+          <div className="relative flex-1 w-full sm:w-64">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Buscar descrição ou NF..."
+              className="pl-8 bg-white"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+          <div className="w-full sm:w-auto">
+            <DatePickerWithRange
+              date={filters.dateRange as any}
+              setDate={(range) => {
+                if (range?.from && range?.to) {
+                  setFilters((prev) => ({
+                    ...prev,
+                    dateRange: { from: range.from!, to: endOfDay(range.to!) },
+                  }))
+                } else if (range?.from) {
+                  setFilters((prev) => ({
+                    ...prev,
+                    dateRange: { from: range.from!, to: endOfDay(range.from!) },
+                  }))
+                }
+              }}
+            />
+          </div>
         </div>
       </div>
 
@@ -130,7 +250,7 @@ export default function Transactions() {
               {displayData.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
-                    Nenhum lançamento encontrado.
+                    Nenhum lançamento encontrado para os filtros aplicados.
                   </TableCell>
                 </TableRow>
               ) : (

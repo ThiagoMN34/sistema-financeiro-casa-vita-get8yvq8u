@@ -49,27 +49,8 @@ export default function ShiftCheckIn() {
     }
   }, [])
 
-  const validateTime = (type: string) => {
-    const hour = new Date().getHours()
-    if (type.includes('diurno')) {
-      return hour >= 6 && hour < 19
-    } else if (type.includes('noturno')) {
-      return hour >= 18 || hour < 7
-    }
-    return true
-  }
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!validateTime(shiftType)) {
-      toast({
-        title: 'Horário Inválido',
-        description:
-          'Você só pode registrar o plantão durante o horário correspondente ao turno selecionado.',
-        variant: 'destructive',
-      })
-      return
-    }
 
     if (shiftType.includes('hóspede') && !guestName) {
       toast({
@@ -248,7 +229,7 @@ export default function ShiftCheckIn() {
             </div>
 
             <Button type="submit" className="w-full" disabled={isSubmitting || !companyId}>
-              {isSubmitting ? 'Registrando...' : 'Registrar Check-in'}
+              {isSubmitting ? 'Registrando...' : 'Enviar para Aprovação'}
             </Button>
           </form>
         </CardContent>

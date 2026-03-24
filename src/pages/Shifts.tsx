@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useFinance, Shift } from '@/contexts/FinanceContext'
 import { useAuth } from '@/hooks/use-auth'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
@@ -55,7 +55,7 @@ export default function Shifts() {
   const { profile } = useAuth()
   const [currentDate, setCurrentDate] = useState(new Date())
   const [listFilterDate, setListFilterDate] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState('calendar')
+  const [activeTab, setActiveTab] = useState('approvals')
 
   const [modalOpen, setModalOpen] = useState(false)
   const [qrModalOpen, setQrModalOpen] = useState(false)
@@ -95,13 +95,17 @@ export default function Shifts() {
     setPayModalOpen(true)
   }
 
+  const pendingShifts = shifts
+    .filter((s) => s.status === 'PENDING')
+    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+
   const displayShifts = shifts
     .filter((s) => {
-      if (listFilterDate && s.date !== listFilterDate) return false
-      return true
+      if (listFilterDate) return s.date === listFilterDate
+      return s.status !== 'PENDING'
     })
     .sort((a, b) => {
-      const statusOrder = { PENDING: 0, AUTHORIZED: 1, PAID: 2 }
+      const statusOrder = { AUTHORIZED: 0, PAID: 1, PENDING: 2 }
       if (statusOrder[a.status] !== statusOrder[b.status])
         return statusOrder[a.status] - statusOrder[b.status]
       return new Date(b.date).getTime() - new Date(a.date).getTime()
@@ -128,11 +132,22 @@ export default function Shifts() {
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="mb-4 flex-wrap h-auto">
-          <TabsTrigger value="calendar" onClick={() => setListFilterDate(null)}>
-            <CalendarDays className="size-4 mr-2" /> Calendário
+          <TabsTrigger value="approvals">
+            <CheckCircle2 className="size-4 mr-2" /> Aprovações
+            {pendingShifts.length > 0 && (
+              <Badge
+                variant="secondary"
+                className="ml-2 bg-rose-100 text-rose-700 hover:bg-rose-100"
+              >
+                {pendingShifts.length}
+              </Badge>
+            )}
           </TabsTrigger>
           <TabsTrigger value="list">
-            <ListTodo className="size-4 mr-2" /> Lista e Aprovações
+            <ListTodo className="size-4 mr-2" /> Histórico e Pagamentos
+          </TabsTrigger>
+          <TabsTrigger value="calendar" onClick={() => setListFilterDate(null)}>
+            <CalendarDays className="size-4 mr-2" /> Calendário
           </TabsTrigger>
           <TabsTrigger value="employees">
             <Users className="size-4 mr-2" /> Funcionários
@@ -144,91 +159,100 @@ export default function Shifts() {
           )}
         </TabsList>
 
-        <TabsContent value="calendar" className="mt-0">
+        <TabsContent value="approvals" className="mt-0">
           <Card className="shadow-sm border-slate-200">
-            <CardHeader className="flex flex-row items-center justify-between py-4 border-b">
-              <CardTitle className="text-lg font-medium">
-                {format(currentDate, 'MMMM yyyy', { locale: ptBR })}
-              </CardTitle>
-              <div className="flex items-center gap-2">
-                <Button variant="outline" size="icon" onClick={handlePrevMonth}>
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-                <Button variant="outline" size="sm" onClick={() => setCurrentDate(new Date())}>
-                  Hoje
-                </Button>
-                <Button variant="outline" size="icon" onClick={handleNextMonth}>
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-              </div>
+            <CardHeader className="border-b">
+              <CardTitle>Aprovações Pendentes</CardTitle>
+              <CardDescription>
+                Lançamentos realizados via QR Code aguardando análise da gestora.
+              </CardDescription>
             </CardHeader>
-            <CardContent className="p-4 bg-slate-50/50">
-              <div className="grid grid-cols-7 gap-px bg-slate-200 border border-slate-200 rounded-lg overflow-hidden">
-                {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map((d) => (
-                  <div
-                    key={d}
-                    className="bg-slate-100 py-2 text-center text-xs font-semibold text-slate-600"
-                  >
-                    {d}
-                  </div>
-                ))}
-                {gridDays.map((day) => {
-                  const dayStr = format(day, 'yyyy-MM-dd')
-                  const dayShifts = shifts.filter((s) => s.date === dayStr)
-                  const isCurrentMonth = isSameMonth(day, currentDate)
-                  const today = isToday(day)
-
-                  return (
-                    <div
-                      key={day.toString()}
-                      className={`min-h-[100px] p-2 transition-colors cursor-pointer hover:bg-slate-50 relative group
-                        ${!isCurrentMonth ? 'bg-slate-50/80' : 'bg-white'} 
-                        ${today ? 'bg-primary/5' : ''}`}
-                      onClick={() => handleDayClick(dayStr)}
-                    >
-                      <div
-                        className={`text-right text-sm font-medium ${today ? 'text-primary' : 'text-slate-500'}`}
-                      >
-                        {format(day, 'd')}
-                      </div>
-                      <div className="mt-1 space-y-1">
-                        {dayShifts.slice(0, 3).map((s) => (
-                          <div
-                            key={s.id}
-                            className={`text-[10px] truncate rounded px-1.5 py-0.5 border ${
-                              s.status === 'PAID'
-                                ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
-                                : s.status === 'AUTHORIZED'
-                                  ? 'bg-blue-50 text-blue-700 border-blue-100'
-                                  : 'bg-amber-50 text-amber-700 border-amber-100'
-                            }`}
-                            title={`${s.employeeName} - ${s.shiftType || 'Manual'}`}
-                          >
-                            {s.employeeName} {s.checkInTime && '📱'}
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader className="bg-slate-50/80">
+                  <TableRow>
+                    <TableHead>Data</TableHead>
+                    <TableHead>Funcionário / Tipo</TableHead>
+                    <TableHead>Unidade</TableHead>
+                    <TableHead>Motivo</TableHead>
+                    <TableHead className="text-right">Valor</TableHead>
+                    <TableHead className="text-right w-[200px]">Ações</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {pendingShifts.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
+                        Nenhum plantão aguardando aprovação.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    pendingShifts.map((s) => (
+                      <TableRow key={s.id}>
+                        <TableCell className="font-medium whitespace-nowrap">
+                          {formatDate(s.date)}
+                          {s.checkInTime && (
+                            <div className="text-[10px] text-slate-500 flex items-center gap-1 mt-0.5">
+                              <Clock className="w-3 h-3" />{' '}
+                              {format(new Date(s.checkInTime), 'HH:mm')}
+                            </div>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <div className="font-semibold text-slate-800 flex items-center gap-1">
+                            {s.employeeName}
+                            {s.latitude && (
+                              <MapPin
+                                className="w-3 h-3 text-emerald-500 inline-block"
+                                title="Localização Capturada"
+                              />
+                            )}
                           </div>
-                        ))}
-                        {dayShifts.length > 3 && (
-                          <div className="text-[10px] text-slate-500 font-medium pl-1">
-                            +{dayShifts.length - 3} plantões
+                          {s.shiftType && (
+                            <div className="text-xs text-muted-foreground mt-0.5">
+                              {s.shiftType} {s.guestName && ` - Hóspede: ${s.guestName}`}
+                            </div>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-sm text-slate-500">
+                          {companies.find((c) => c.id === s.companyId)?.name}
+                        </TableCell>
+                        <TableCell
+                          className="text-sm text-slate-500 max-w-[200px] truncate"
+                          title={s.reason || ''}
+                        >
+                          {s.reason || '-'}
+                        </TableCell>
+                        <TableCell className="text-right font-medium">
+                          {formatCurrency(s.amount)}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-1">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 border-emerald-200"
+                              onClick={() => updateShift(s.id, { status: 'AUTHORIZED' })}
+                              title="Aprovar Plantão"
+                            >
+                              <CheckCircle2 className="h-4 w-4 mr-1" /> Aprovar
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="text-rose-500 hover:text-rose-600 hover:bg-rose-50"
+                              onClick={() => deleteShift(s.id)}
+                              title="Reprovar / Excluir"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
                           </div>
-                        )}
-                      </div>
-
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6 absolute top-1 left-1 opacity-0 group-hover:opacity-100 text-slate-400 hover:text-primary"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleNewShift(dayStr)
-                        }}
-                      >
-                        <Plus className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  )
-                })}
-              </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
             </CardContent>
           </Card>
         </TabsContent>
@@ -369,6 +393,95 @@ export default function Shifts() {
                   )}
                 </TableBody>
               </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="calendar" className="mt-0">
+          <Card className="shadow-sm border-slate-200">
+            <CardHeader className="flex flex-row items-center justify-between py-4 border-b">
+              <CardTitle className="text-lg font-medium">
+                {format(currentDate, 'MMMM yyyy', { locale: ptBR })}
+              </CardTitle>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="icon" onClick={handlePrevMonth}>
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => setCurrentDate(new Date())}>
+                  Hoje
+                </Button>
+                <Button variant="outline" size="icon" onClick={handleNextMonth}>
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="p-4 bg-slate-50/50">
+              <div className="grid grid-cols-7 gap-px bg-slate-200 border border-slate-200 rounded-lg overflow-hidden">
+                {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map((d) => (
+                  <div
+                    key={d}
+                    className="bg-slate-100 py-2 text-center text-xs font-semibold text-slate-600"
+                  >
+                    {d}
+                  </div>
+                ))}
+                {gridDays.map((day) => {
+                  const dayStr = format(day, 'yyyy-MM-dd')
+                  const dayShifts = shifts.filter((s) => s.date === dayStr)
+                  const isCurrentMonth = isSameMonth(day, currentDate)
+                  const today = isToday(day)
+
+                  return (
+                    <div
+                      key={day.toString()}
+                      className={`min-h-[100px] p-2 transition-colors cursor-pointer hover:bg-slate-50 relative group
+                        ${!isCurrentMonth ? 'bg-slate-50/80' : 'bg-white'} 
+                        ${today ? 'bg-primary/5' : ''}`}
+                      onClick={() => handleDayClick(dayStr)}
+                    >
+                      <div
+                        className={`text-right text-sm font-medium ${today ? 'text-primary' : 'text-slate-500'}`}
+                      >
+                        {format(day, 'd')}
+                      </div>
+                      <div className="mt-1 space-y-1">
+                        {dayShifts.slice(0, 3).map((s) => (
+                          <div
+                            key={s.id}
+                            className={`text-[10px] truncate rounded px-1.5 py-0.5 border ${
+                              s.status === 'PAID'
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
+                                : s.status === 'AUTHORIZED'
+                                  ? 'bg-blue-50 text-blue-700 border-blue-100'
+                                  : 'bg-amber-50 text-amber-700 border-amber-100'
+                            }`}
+                            title={`${s.employeeName} - ${s.shiftType || 'Manual'}`}
+                          >
+                            {s.employeeName} {s.checkInTime && '📱'}
+                          </div>
+                        ))}
+                        {dayShifts.length > 3 && (
+                          <div className="text-[10px] text-slate-500 font-medium pl-1">
+                            +{dayShifts.length - 3} plantões
+                          </div>
+                        )}
+                      </div>
+
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 absolute top-1 left-1 opacity-0 group-hover:opacity-100 text-slate-400 hover:text-primary"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleNewShift(dayStr)
+                        }}
+                      >
+                        <Plus className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  )
+                })}
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

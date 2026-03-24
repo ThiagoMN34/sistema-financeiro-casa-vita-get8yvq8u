@@ -122,7 +122,7 @@ const initialFilters: Filters = {
 }
 
 export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { session } = useAuth()
+  const { session, profile } = useAuth()
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [accounts, setAccounts] = useState<Account[]>([])
@@ -134,9 +134,36 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [aiDictionary, setAiDictionary] = useState<Record<string, string>>({})
 
   useEffect(() => {
-    if (!session) return
+    if (!session || !profile) return
 
     const fetchData = async () => {
+      // MANAGER only needs companies and shifts
+      if (profile.role === 'MANAGER') {
+        const [comps, shiftsRes] = await Promise.all([
+          supabase.from('companies').select('*'),
+          supabase
+            .from('shifts' as any)
+            .select('*')
+            .order('date', { ascending: false }),
+        ])
+        if (comps.data) setCompanies(comps.data.map((c) => ({ id: c.id, name: c.name })))
+        if (shiftsRes.data) {
+          setShifts(
+            shiftsRes.data.map((s: any) => ({
+              id: s.id,
+              companyId: s.company_id,
+              employeeName: s.employee_name,
+              date: s.date,
+              amount: Number(s.amount),
+              status: s.status,
+              transactionId: s.transaction_id || undefined,
+            })),
+          )
+        }
+        return
+      }
+
+      // ADMIN fetches everything
       const [comps, accs, cats, txs, patterns, debtsRes, instsRes, shiftsRes] = await Promise.all([
         supabase.from('companies').select('*'),
         supabase.from('accounts').select('*'),
@@ -238,7 +265,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
 
     fetchData()
-  }, [session])
+  }, [session, profile])
 
   const filteredTransactions = useMemo(() => {
     return transactions

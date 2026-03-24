@@ -21,6 +21,7 @@ import {
   SidebarMenuItem,
 } from '@/components/ui/sidebar'
 import { useFinance } from '@/contexts/FinanceContext'
+import { useAuth } from '@/hooks/use-auth'
 import { Badge } from '@/components/ui/badge'
 
 const navigation = [
@@ -37,8 +38,16 @@ const navigation = [
 export function AppSidebar() {
   const location = useLocation()
   const { pendingTransactions, shifts } = useFinance()
+  const { profile } = useAuth()
 
   const pendingShiftsCount = shifts.filter((s) => s.status === 'PENDING').length
+
+  const filteredNavigation = navigation.filter((item) => {
+    if (profile?.role === 'MANAGER') {
+      return item.to === '/shifts'
+    }
+    return true
+  })
 
   return (
     <Sidebar className="border-r border-slate-200 glass-effect">
@@ -55,7 +64,7 @@ export function AppSidebar() {
         <SidebarGroup>
           <SidebarGroupContent className="mt-4">
             <SidebarMenu>
-              {navigation.map((item) => {
+              {filteredNavigation.map((item) => {
                 const isActive = location.pathname === item.to
                 return (
                   <SidebarMenuItem key={item.name}>

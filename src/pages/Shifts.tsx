@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useFinance, Shift } from '@/contexts/FinanceContext'
+import { useAuth } from '@/hooks/use-auth'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -43,6 +44,7 @@ import { Badge } from '@/components/ui/badge'
 
 export default function Shifts() {
   const { shifts, companies, updateShift, deleteShift } = useFinance()
+  const { profile } = useAuth()
   const [currentDate, setCurrentDate] = useState(new Date())
   const [listFilterDate, setListFilterDate] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState('calendar')
@@ -295,7 +297,7 @@ export default function Shifts() {
                                 <CheckCircle2 className="h-4 w-4 mr-1" /> Aprovar
                               </Button>
                             )}
-                            {s.status === 'AUTHORIZED' && (
+                            {s.status === 'AUTHORIZED' && profile?.role === 'ADMIN' && (
                               <Button
                                 variant="ghost"
                                 size="sm"

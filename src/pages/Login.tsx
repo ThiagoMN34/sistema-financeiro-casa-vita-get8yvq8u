@@ -31,6 +31,15 @@ export default function Login() {
           </div>
         </CardHeader>
         <CardContent>
+          <div className="mb-6 space-y-2 p-3 text-xs text-slate-500 bg-slate-100 rounded-md border border-slate-200 text-center">
+            <p>
+              <strong>Admin:</strong> thiagomnaves@yahoo.com.br
+            </p>
+            <p>
+              <strong>Gestora:</strong> gestora@casavita.com.br
+            </p>
+            <p className="mt-1 border-t pt-1">Senha: securepassword123</p>
+          </div>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <label className="text-sm font-medium text-slate-700">Email</label>

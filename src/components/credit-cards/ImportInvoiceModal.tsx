@@ -32,6 +32,7 @@ import { toast } from '@/hooks/use-toast'
 
 export function ImportInvoiceModal({ open, onOpenChange, cardId, invoiceMonth }: any) {
   const [step, setStep] = useState(1)
+  const [currentTab, setCurrentTab] = useState('upload')
   const [isProcessing, setIsProcessing] = useState(false)
   const [rows, setRows] = useState<any[]>([])
   const [pastedText, setPastedText] = useState('')
@@ -116,6 +117,18 @@ export function ImportInvoiceModal({ open, onOpenChange, cardId, invoiceMonth }:
     const file = e.target.files?.[0]
     if (!file) return
 
+    if (file.name.endsWith('.pdf')) {
+      toast({
+        title: 'Aviso de Formato',
+        description:
+          'A extração automática de PDFs não está disponível no navegador. Por favor, copie o texto do PDF e utilize a aba "Colar Texto".',
+        variant: 'destructive',
+      })
+      if (fileInputRef.current) fileInputRef.current.value = ''
+      setCurrentTab('paste')
+      return
+    }
+
     setIsProcessing(true)
     setStep(2)
 
@@ -127,28 +140,13 @@ export function ImportInvoiceModal({ open, onOpenChange, cardId, invoiceMonth }:
       }
       reader.readAsText(file)
     } else {
-      // Mock for PDF files to simulate the extraction with dummy data to be reviewed
-      setTimeout(() => {
-        const mockTx = [
-          { date: `${invoiceMonth}-05`, description: 'UBER *TRIP', amount: 25.5 },
-          { date: `${invoiceMonth}-10`, description: 'IFOOD *DELIVERY', amount: 45.9 },
-          { date: `${invoiceMonth}-12`, description: 'AMZNPRIME', amount: 14.9 },
-          { date: `${invoiceMonth}-15`, description: 'PAG*MERCADOLIVRE', amount: 120.0 },
-          { date: `${invoiceMonth}-20`, description: 'POSTO IPIRANGA', amount: 150.0 },
-        ]
-
-        const parsed = mockTx.map((tx, i) => {
-          const cat = aiSuggestCategory(tx.description)
-          return {
-            id: `tmp-${i}`,
-            ...tx,
-            categoryId: cat.categoryId,
-            aiConfidence: cat.confidence,
-          }
-        })
-        setRows(parsed)
-        setIsProcessing(false)
-      }, 1500)
+      setIsProcessing(false)
+      setStep(1)
+      toast({
+        title: 'Formato inválido',
+        description: 'Por favor, envie um arquivo CSV ou TXT.',
+        variant: 'destructive',
+      })
     }
   }
 
@@ -219,6 +217,7 @@ export function ImportInvoiceModal({ open, onOpenChange, cardId, invoiceMonth }:
           setStep(1)
           setRows([])
           setPastedText('')
+          setCurrentTab('upload')
         }
         onOpenChange(v)
       }}
@@ -227,12 +226,12 @@ export function ImportInvoiceModal({ open, onOpenChange, cardId, invoiceMonth }:
         <DialogHeader>
           <DialogTitle>Importar Fatura</DialogTitle>
           <DialogDescription>
-            Importe o PDF/CSV ou cole o texto da sua fatura para leitura dos lançamentos.
+            Importe o CSV/TXT ou cole o texto da sua fatura para leitura dos lançamentos.
           </DialogDescription>
         </DialogHeader>
 
         {step === 1 && (
-          <Tabs defaultValue="upload" className="w-full">
+          <Tabs value={currentTab} onValueChange={setCurrentTab} className="w-full">
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="upload">Upload de Arquivo</TabsTrigger>
               <TabsTrigger value="paste">Colar Texto</TabsTrigger>
@@ -246,19 +245,22 @@ export function ImportInvoiceModal({ open, onOpenChange, cardId, invoiceMonth }:
                   type="file"
                   ref={fileInputRef}
                   className="hidden"
-                  accept=".pdf,.csv,.txt"
+                  accept=".csv,.txt,.pdf"
                   onChange={handleFile}
                 />
                 <UploadCloud className="size-12 mx-auto text-slate-400 mb-4" />
                 <h3 className="text-lg font-semibold text-slate-700">
                   Clique para enviar o arquivo da fatura
                 </h3>
-                <p className="text-sm text-muted-foreground mt-1">Suporta PDF, CSV ou TXT.</p>
+                <p className="text-sm text-muted-foreground mt-1">Suporta CSV ou TXT.</p>
+                <p className="text-xs text-rose-500 mt-2 font-medium">
+                  Para PDF, por favor, copie o conteúdo e utilize a aba "Colar Texto".
+                </p>
               </div>
             </TabsContent>
             <TabsContent value="paste" className="mt-4 space-y-4">
               <Textarea
-                placeholder="Cole aqui o texto copiado da sua fatura (Data, Descrição, Valor)..."
+                placeholder="Cole aqui o texto copiado da sua fatura em PDF (Data, Descrição, Valor)..."
                 className="min-h-[200px]"
                 value={pastedText}
                 onChange={(e) => setPastedText(e.target.value)}
@@ -282,8 +284,8 @@ export function ImportInvoiceModal({ open, onOpenChange, cardId, invoiceMonth }:
           <div className="space-y-4">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-amber-50 text-amber-800 p-4 rounded-md text-sm border border-amber-200 gap-4">
               <p>
-                <strong>Atenção:</strong> Revise os lançamentos extraídos. Você pode editar os
-                campos ou remover linhas incorretas.
+                <strong>Atenção:</strong> Revise os lançamentos extraídos. O sistema tentou
+                identificar os registros de forma estrita. Se faltou algo, adicione manualmente.
               </p>
               <Button
                 variant="outline"
@@ -310,7 +312,7 @@ export function ImportInvoiceModal({ open, onOpenChange, cardId, invoiceMonth }:
                   {rows.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={5} className="text-center h-24 text-muted-foreground">
-                        Nenhum lançamento para exibir.
+                        Nenhum lançamento válido encontrado.
                       </TableCell>
                     </TableRow>
                   ) : (

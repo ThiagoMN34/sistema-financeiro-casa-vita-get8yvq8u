@@ -11,6 +11,7 @@ import Debts from './pages/Debts'
 import Categories from './pages/Categories'
 import Accounts from './pages/Accounts'
 import Shifts from './pages/Shifts'
+import Users from './pages/Users'
 import NotFound from './pages/NotFound'
 import Login from './pages/Login'
 import ShiftCheckIn from './pages/ShiftCheckIn'
@@ -127,6 +128,14 @@ const App = () => (
               element={
                 <RoleGuard allowedRoles={['ADMIN']}>
                   <Accounts />
+                </RoleGuard>
+              }
+            />
+            <Route
+              path="/users"
+              element={
+                <RoleGuard allowedRoles={['ADMIN']}>
+                  <Users />
                 </RoleGuard>
               }
             />

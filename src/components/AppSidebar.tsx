@@ -9,6 +9,7 @@ import {
   BarChart3,
   Banknote,
   CalendarDays,
+  Users,
 } from 'lucide-react'
 import {
   Sidebar,
@@ -33,6 +34,7 @@ const navigation = [
   { name: 'Dívidas', to: '/debts', icon: Banknote },
   { name: 'Categorias', to: '/categories', icon: Tags },
   { name: 'Contas Bancárias', to: '/accounts', icon: Landmark },
+  { name: 'Usuários', to: '/users', icon: Users },
 ]
 
 export function AppSidebar() {

@@ -84,19 +84,23 @@ export default function ShiftCheckIn() {
 
     const dateStr = new Date().toISOString().split('T')[0]
 
-    const { error } = await supabase.from('shifts').insert({
-      company_id: companyId,
-      employee_name: employeeName,
-      date: dateStr,
-      status: 'PENDING',
-      shift_type: shiftType,
-      guest_name: guestName || null,
-      reason: reason,
-      authorized_by: authorizedBy,
-      check_in_time: new Date().toISOString(),
-      latitude: location?.lat || null,
-      longitude: location?.lng || null,
-    })
+    const { data, error } = await supabase
+      .from('shifts')
+      .insert({
+        company_id: companyId,
+        employee_name: employeeName,
+        date: dateStr,
+        status: 'PENDING',
+        shift_type: shiftType,
+        guest_name: guestName || null,
+        reason: reason,
+        authorized_by: authorizedBy,
+        check_in_time: new Date().toISOString(),
+        latitude: location?.lat || null,
+        longitude: location?.lng || null,
+      })
+      .select()
+      .single()
 
     setIsSubmitting(false)
 
@@ -108,6 +112,18 @@ export default function ShiftCheckIn() {
       })
     } else {
       setSuccess(true)
+
+      // Notify the manager asynchronously via Edge Function
+      supabase.functions
+        .invoke('notify-manager', {
+          body: {
+            shiftId: data?.id,
+            employeeName,
+            shiftType,
+            date: dateStr,
+          },
+        })
+        .catch((err) => console.error('Failed to dispatch notification', err))
     }
   }
 
@@ -121,7 +137,7 @@ export default function ShiftCheckIn() {
             </div>
             <h2 className="text-2xl font-bold text-slate-800">Check-in Realizado!</h2>
             <p className="text-slate-500">
-              Seu plantão foi registrado com sucesso e enviado para aprovação da gestora.
+              Seu plantão foi registrado com sucesso e a gestora já foi notificada para aprovação.
             </p>
             <Button onClick={() => window.location.reload()} variant="outline" className="mt-4">
               Registrar Novo Plantão

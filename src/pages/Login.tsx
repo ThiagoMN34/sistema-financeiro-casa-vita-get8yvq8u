@@ -36,7 +36,7 @@ export default function Login() {
               <strong>Admin:</strong> thiagomnaves@yahoo.com.br
             </p>
             <p>
-              <strong>Gestora:</strong> gestora@casavita.com.br
+              <strong>Gestora:</strong> naves034@gmail.com
             </p>
             <p className="mt-1 border-t pt-1">Senha: securepassword123</p>
           </div>

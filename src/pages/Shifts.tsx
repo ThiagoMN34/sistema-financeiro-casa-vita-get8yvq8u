@@ -31,10 +31,12 @@ import {
   QrCode,
   MapPin,
   Clock,
+  History,
 } from 'lucide-react'
 import { ShiftModal } from '@/components/shifts/ShiftModal'
 import { PayShiftModal } from '@/components/shifts/PayShiftModal'
 import { QrCodeModal } from '@/components/shifts/QrCodeModal'
+import { AuditLogsTab } from '@/components/shifts/AuditLogsTab'
 import {
   Table,
   TableBody,
@@ -130,6 +132,11 @@ export default function Shifts() {
           <TabsTrigger value="list">
             <ListTodo className="size-4 mr-2" /> Lista e Aprovações
           </TabsTrigger>
+          {profile?.role === 'ADMIN' && (
+            <TabsTrigger value="audit">
+              <History className="size-4 mr-2" /> Auditoria
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="calendar" className="mt-0">
@@ -360,6 +367,12 @@ export default function Shifts() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        {profile?.role === 'ADMIN' && (
+          <TabsContent value="audit" className="mt-0">
+            <AuditLogsTab />
+          </TabsContent>
+        )}
       </Tabs>
 
       <ShiftModal

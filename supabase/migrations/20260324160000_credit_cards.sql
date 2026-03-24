@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS public.credit_card_transactions (
 ALTER TABLE public.credit_cards ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.credit_card_transactions ENABLE ROW LEVEL SECURITY;
 
-DO $
+DO $$
 BEGIN
   DROP POLICY IF EXISTS "admin_all_credit_cards" ON public.credit_cards;
   CREATE POLICY "admin_all_credit_cards" ON public.credit_cards 
@@ -35,5 +35,4 @@ BEGIN
   DROP POLICY IF EXISTS "admin_all_cc_transactions" ON public.credit_card_transactions;
   CREATE POLICY "admin_all_cc_transactions" ON public.credit_card_transactions 
     FOR ALL TO authenticated USING (true) WITH CHECK (true);
-END $;
-
+END $$;

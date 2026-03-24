@@ -12,6 +12,7 @@ import {
   Users,
   LogOut,
   ChevronsUpDown,
+  CreditCard,
 } from 'lucide-react'
 import {
   Sidebar,
@@ -43,6 +44,7 @@ const navigation = [
   { name: 'Lançamentos', to: '/transactions', icon: ReceiptText },
   { name: 'Importar Extrato', to: '/import', icon: UploadCloud },
   { name: 'Plantões', to: '/shifts', icon: CalendarDays },
+  { name: 'Cartões de Crédito', to: '/credit-cards', icon: CreditCard },
   { name: 'Relatórios', to: '/reports', icon: BarChart3 },
   { name: 'Dívidas', to: '/debts', icon: Banknote },
   { name: 'Categorias', to: '/categories', icon: Tags },
@@ -59,9 +61,7 @@ export function AppSidebar() {
   const pendingShiftsCount = shifts.filter((s) => s.status === 'PENDING').length
 
   const filteredNavigation = navigation.filter((item) => {
-    if (profile?.role === 'MANAGER') {
-      return item.to === '/shifts'
-    }
+    if (profile?.role === 'MANAGER') return item.to === '/shifts'
     return true
   })
 
@@ -76,7 +76,6 @@ export function AppSidebar() {
           <p className="text-xs text-muted-foreground">Sistema Financeiro</p>
         </div>
       </SidebarHeader>
-
       <SidebarContent className="flex-1">
         <SidebarGroup>
           <SidebarGroupContent className="mt-4">
@@ -119,7 +118,6 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-
       <SidebarFooter className="border-t border-slate-100 p-2 mt-auto">
         <SidebarMenu>
           <SidebarMenuItem>

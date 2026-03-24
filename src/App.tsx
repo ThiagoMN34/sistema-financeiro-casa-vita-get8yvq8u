@@ -12,6 +12,7 @@ import Categories from './pages/Categories'
 import Accounts from './pages/Accounts'
 import Shifts from './pages/Shifts'
 import Users from './pages/Users'
+import CreditCards from './pages/CreditCards'
 import NotFound from './pages/NotFound'
 import Login from './pages/Login'
 import ShiftCheckIn from './pages/ShiftCheckIn'
@@ -27,15 +28,12 @@ const AuthWrapper = ({ children }: { children: React.ReactNode }) => {
       </div>
     )
   if (!session) return <Login />
-
-  // If profile is not loaded yet after session, wait
   if (!profile)
     return (
       <div className="min-h-screen flex items-center justify-center text-muted-foreground">
         Preparando o seu ambiente...
       </div>
     )
-
   return <>{children}</>
 }
 
@@ -47,13 +45,8 @@ const RoleGuard = ({
   children: React.ReactNode
 }) => {
   const { profile } = useAuth()
-
   if (!profile) return null
-
-  if (!allowedRoles.includes(profile.role)) {
-    return <Navigate to="/shifts" replace />
-  }
-
+  if (!allowedRoles.includes(profile.role)) return <Navigate to="/shifts" replace />
   return <>{children}</>
 }
 
@@ -128,6 +121,14 @@ const App = () => (
               element={
                 <RoleGuard allowedRoles={['ADMIN']}>
                   <Accounts />
+                </RoleGuard>
+              }
+            />
+            <Route
+              path="/credit-cards"
+              element={
+                <RoleGuard allowedRoles={['ADMIN']}>
+                  <CreditCards />
                 </RoleGuard>
               }
             />

@@ -36,19 +36,22 @@ export function CreateUserModal({ open, onOpenChange, onSuccess }: CreateUserMod
     e.preventDefault()
     setLoading(true)
 
-    const { error } = await supabase.functions.invoke('admin-users', {
+    const { data, error } = await supabase.functions.invoke('admin-users', {
       body: { action: 'create', email, password, role },
     })
 
     setLoading(false)
 
-    if (error) {
-      console.error('Error creating user:', error)
+    const apiError = error || (data?.error ? new Error(data.error) : null)
+
+    if (apiError) {
+      console.error('Error creating user:', apiError)
       toast({
         variant: 'destructive',
         title: 'Erro ao criar usuário',
         description:
-          error.message || 'Verifique se o e-mail já está em uso ou a senha atende aos requisitos.',
+          apiError.message ||
+          'Verifique se o e-mail já está em uso ou a senha atende aos requisitos.',
       })
       return
     }

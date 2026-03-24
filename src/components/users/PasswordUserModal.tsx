@@ -31,18 +31,20 @@ export function PasswordUserModal({ open, onOpenChange, user }: PasswordUserModa
 
     setLoading(true)
 
-    const { error } = await supabase.functions.invoke('admin-users', {
+    const { data, error } = await supabase.functions.invoke('admin-users', {
       body: { action: 'update_password', id: user.id, password },
     })
 
     setLoading(false)
 
-    if (error) {
-      console.error('Error updating password:', error)
+    const apiError = error || (data?.error ? new Error(data.error) : null)
+
+    if (apiError) {
+      console.error('Error updating password:', apiError)
       toast({
         variant: 'destructive',
         title: 'Erro ao alterar senha',
-        description: error.message || 'Verifique se a senha atende aos requisitos mínimos.',
+        description: apiError.message || 'Verifique se a senha atende aos requisitos mínimos.',
       })
       return
     }

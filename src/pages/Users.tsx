@@ -72,12 +72,18 @@ export default function Users() {
 
   const confirmDelete = async () => {
     if (!selectedUser) return
-    const { error } = await supabase.functions.invoke('admin-users', {
+    const { data, error } = await supabase.functions.invoke('admin-users', {
       body: { action: 'delete', id: selectedUser.id },
     })
 
-    if (error) {
-      toast({ variant: 'destructive', title: 'Erro ao excluir usuário' })
+    const apiError = error || (data?.error ? new Error(data.error) : null)
+
+    if (apiError) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao excluir usuário',
+        description: apiError.message,
+      })
     } else {
       setUsers(users.filter((u) => u.id !== selectedUser.id))
       toast({ title: 'Usuário removido com sucesso.' })

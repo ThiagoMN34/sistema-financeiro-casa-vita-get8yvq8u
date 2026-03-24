@@ -99,10 +99,14 @@ export default function Shifts() {
     .filter((s) => s.status === 'PENDING')
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
 
+  const authorizedShifts = shifts
+    .filter((s) => s.status === 'AUTHORIZED')
+    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+
   const displayShifts = shifts
     .filter((s) => {
       if (listFilterDate) return s.date === listFilterDate
-      return s.status !== 'PENDING'
+      return s.status === 'PAID'
     })
     .sort((a, b) => {
       const statusOrder = { AUTHORIZED: 0, PAID: 1, PENDING: 2 }
@@ -143,8 +147,19 @@ export default function Shifts() {
               </Badge>
             )}
           </TabsTrigger>
+          <TabsTrigger value="authorized">
+            <ListTodo className="size-4 mr-2" /> A Pagar
+            {authorizedShifts.length > 0 && (
+              <Badge
+                variant="secondary"
+                className="ml-2 bg-blue-100 text-blue-700 hover:bg-blue-100"
+              >
+                {authorizedShifts.length}
+              </Badge>
+            )}
+          </TabsTrigger>
           <TabsTrigger value="list">
-            <ListTodo className="size-4 mr-2" /> Histórico e Pagamentos
+            <History className="size-4 mr-2" /> Histórico (Pagos)
           </TabsTrigger>
           <TabsTrigger value="calendar" onClick={() => setListFilterDate(null)}>
             <CalendarDays className="size-4 mr-2" /> Calendário
@@ -176,7 +191,7 @@ export default function Shifts() {
                     <TableHead>Unidade</TableHead>
                     <TableHead>Motivo</TableHead>
                     <TableHead className="text-right">Valor</TableHead>
-                    <TableHead className="text-right w-[200px]">Ações</TableHead>
+                    <TableHead className="text-right w-[150px]">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -257,23 +272,14 @@ export default function Shifts() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="list" className="mt-0">
+        <TabsContent value="authorized" className="mt-0">
           <Card className="shadow-sm border-slate-200">
-            {listFilterDate && (
-              <div className="bg-indigo-50 border-b border-indigo-100 p-3 px-6 flex items-center justify-between">
-                <span className="text-sm text-indigo-800 font-medium">
-                  Mostrando plantões do dia: {formatDate(parseISO(listFilterDate))}
-                </span>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-100"
-                  onClick={() => setListFilterDate(null)}
-                >
-                  Limpar Filtro
-                </Button>
-              </div>
-            )}
+            <CardHeader className="border-b">
+              <CardTitle>Plantões A Pagar</CardTitle>
+              <CardDescription>
+                Lançamentos aprovados pela gestão que estão prontos para pagamento.
+              </CardDescription>
+            </CardHeader>
             <CardContent className="p-0">
               <Table>
                 <TableHeader className="bg-slate-50/80">
@@ -282,19 +288,18 @@ export default function Shifts() {
                     <TableHead>Funcionário / Tipo</TableHead>
                     <TableHead>Unidade</TableHead>
                     <TableHead className="text-right">Valor</TableHead>
-                    <TableHead className="text-center">Status</TableHead>
-                    <TableHead className="text-right w-[180px]">Ações</TableHead>
+                    <TableHead className="text-right w-[150px]">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {displayShifts.length === 0 ? (
+                  {authorizedShifts.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
-                        Nenhum plantão encontrado.
+                      <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
+                        Nenhum plantão aguardando pagamento.
                       </TableCell>
                     </TableRow>
                   ) : (
-                    displayShifts.map((s) => (
+                    authorizedShifts.map((s) => (
                       <TableRow key={s.id}>
                         <TableCell className="font-medium whitespace-nowrap">
                           {formatDate(s.date)}
@@ -308,16 +313,110 @@ export default function Shifts() {
                         <TableCell>
                           <div className="font-semibold text-slate-800 flex items-center gap-1">
                             {s.employeeName}
-                            {s.latitude && (
-                              <MapPin
-                                className="w-3 h-3 text-emerald-500 inline-block"
-                                title="Localização Capturada"
-                              />
-                            )}
                           </div>
                           {s.shiftType && (
                             <div className="text-xs text-muted-foreground mt-0.5">
                               {s.shiftType} {s.guestName && ` - Hóspede: ${s.guestName}`}
+                            </div>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-sm text-slate-500">
+                          {companies.find((c) => c.id === s.companyId)?.name}
+                        </TableCell>
+                        <TableCell className="text-right font-medium">
+                          {formatCurrency(s.amount)}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-1">
+                            {profile?.role === 'ADMIN' && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 border-emerald-200"
+                                onClick={() => handlePayClick(s)}
+                                title="Efetivar Pagamento"
+                              >
+                                <CircleDollarSign className="h-4 w-4 mr-1" /> Pagar
+                              </Button>
+                            )}
+                            <Button variant="ghost" size="icon" onClick={() => handleEdit(s)}>
+                              <Pencil className="h-4 w-4 text-slate-400" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="text-rose-500 hover:text-rose-600 hover:bg-rose-50"
+                              onClick={() => deleteShift(s.id)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="list" className="mt-0">
+          <Card className="shadow-sm border-slate-200">
+            {listFilterDate ? (
+              <div className="bg-indigo-50 border-b border-indigo-100 p-3 px-6 flex items-center justify-between">
+                <span className="text-sm text-indigo-800 font-medium">
+                  Mostrando plantões do dia: {formatDate(parseISO(listFilterDate))}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-100"
+                  onClick={() => setListFilterDate(null)}
+                >
+                  Limpar Filtro
+                </Button>
+              </div>
+            ) : (
+              <CardHeader className="border-b">
+                <CardTitle>Histórico de Plantões Pagos</CardTitle>
+                <CardDescription>
+                  Registro permanente de todos os plantões já finalizados e pagos.
+                </CardDescription>
+              </CardHeader>
+            )}
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader className="bg-slate-50/80">
+                  <TableRow>
+                    <TableHead>Data</TableHead>
+                    <TableHead>Funcionário / Tipo</TableHead>
+                    <TableHead>Unidade</TableHead>
+                    <TableHead className="text-right">Valor</TableHead>
+                    <TableHead className="text-center">Status</TableHead>
+                    <TableHead className="text-right w-[150px]">Ações</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {displayShifts.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
+                        Nenhum plantão no histórico.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    displayShifts.map((s) => (
+                      <TableRow key={s.id}>
+                        <TableCell className="font-medium whitespace-nowrap">
+                          {formatDate(s.date)}
+                        </TableCell>
+                        <TableCell>
+                          <div className="font-semibold text-slate-800 flex items-center gap-1">
+                            {s.employeeName}
+                          </div>
+                          {s.shiftType && (
+                            <div className="text-xs text-muted-foreground mt-0.5">
+                              {s.shiftType}
                             </div>
                           )}
                         </TableCell>
@@ -375,17 +474,21 @@ export default function Shifts() {
                                 <CircleDollarSign className="h-4 w-4 mr-1" /> Pagar
                               </Button>
                             )}
-                            <Button variant="ghost" size="icon" onClick={() => handleEdit(s)}>
-                              <Pencil className="h-4 w-4 text-slate-400" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="text-rose-500 hover:text-rose-600 hover:bg-rose-50"
-                              onClick={() => deleteShift(s.id)}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
+                            {s.status !== 'PAID' && (
+                              <>
+                                <Button variant="ghost" size="icon" onClick={() => handleEdit(s)}>
+                                  <Pencil className="h-4 w-4 text-slate-400" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="text-rose-500 hover:text-rose-600 hover:bg-rose-50"
+                                  onClick={() => deleteShift(s.id)}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </>
+                            )}
                           </div>
                         </TableCell>
                       </TableRow>

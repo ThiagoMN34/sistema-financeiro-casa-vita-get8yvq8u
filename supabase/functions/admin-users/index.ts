@@ -4,8 +4,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2'
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-  'Access-Control-Allow-Headers':
-    'authorization, x-client-info, x-supabase-client-platform, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, x-supabase-client-platform, apikey, content-type',
 }
 
 Deno.serve(async (req: Request) => {
@@ -25,18 +24,11 @@ Deno.serve(async (req: Request) => {
     if (!authHeader) throw new Error('Missing Authorization header')
 
     const token = authHeader.replace('Bearer ', '')
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser(token)
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token)
 
     if (authError || !user) throw new Error('Invalid token')
 
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single()
+    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
     if (profile?.role !== 'ADMIN') throw new Error('Unauthorized')
 
     const body = await req.json()
@@ -44,9 +36,8 @@ Deno.serve(async (req: Request) => {
 
     if (action === 'create') {
       const { email, password, role } = body
-      if (!password || password.length < 6)
-        throw new Error('A senha deve ter pelo menos 6 caracteres')
-
+      if (!password || password.length < 6) throw new Error('A senha deve ter pelo menos 6 caracteres')
+      
       const { data: newUser, error: createError } = await supabase.auth.admin.createUser({
         email,
         password,
@@ -65,9 +56,8 @@ Deno.serve(async (req: Request) => {
 
     if (action === 'update_password') {
       const { id, password } = body
-      if (!password || password.length < 6)
-        throw new Error('A nova senha deve ter pelo menos 6 caracteres')
-
+      if (!password || password.length < 6) throw new Error('A nova senha deve ter pelo menos 6 caracteres')
+        
       const { error: updateError } = await supabase.auth.admin.updateUserById(id, { password })
       if (updateError) throw updateError
       return new Response(JSON.stringify({ success: true }), {

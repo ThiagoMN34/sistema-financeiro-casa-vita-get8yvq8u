@@ -1,4 +1,4 @@
-import { Bell } from 'lucide-react'
+import { Bell, LogOut } from 'lucide-react'
 import { useFinance } from '@/contexts/FinanceContext'
 import { SidebarTrigger } from '@/components/ui/sidebar'
 import {
@@ -11,9 +11,19 @@ import {
 import { DatePickerWithRange } from '@/components/ui/date-range-picker'
 import { Badge } from '@/components/ui/badge'
 import { Link } from 'react-router-dom'
+import { useAuth } from '@/hooks/use-auth'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 
 export function Header() {
   const { companies, accounts, filters, setFilters, pendingTransactions } = useFinance()
+  const { signOut, profile } = useAuth()
 
   const handleCompanyChange = (value: string) => {
     setFilters((prev) => ({ ...prev, companyId: value, accountId: 'all' }))
@@ -87,9 +97,28 @@ export function Header() {
               </Badge>
             )}
           </Link>
-          <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center text-white font-bold text-sm shadow-sm">
-            CV
-          </div>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <div className="h-8 w-8 rounded-full bg-primary cursor-pointer hover:bg-primary/90 flex items-center justify-center text-white font-bold text-sm shadow-sm transition-colors">
+                {profile?.email?.substring(0, 2).toUpperCase() || 'CV'}
+              </div>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuLabel>Minha Conta</DropdownMenuLabel>
+              <div className="px-2 py-1.5 text-xs text-muted-foreground truncate">
+                {profile?.email}
+              </div>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() => signOut()}
+                className="text-red-600 focus:text-red-700 focus:bg-red-50 cursor-pointer"
+              >
+                <LogOut className="mr-2 h-4 w-4" />
+                <span>Sair</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
     </header>

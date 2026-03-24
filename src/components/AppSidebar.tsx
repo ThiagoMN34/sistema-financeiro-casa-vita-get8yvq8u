@@ -10,10 +10,12 @@ import {
   Banknote,
   CalendarDays,
   Users,
+  LogOut,
 } from 'lucide-react'
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarHeader,
@@ -40,7 +42,7 @@ const navigation = [
 export function AppSidebar() {
   const location = useLocation()
   const { pendingTransactions, shifts } = useFinance()
-  const { profile } = useAuth()
+  const { profile, signOut } = useAuth()
 
   const pendingShiftsCount = shifts.filter((s) => s.status === 'PENDING').length
 
@@ -104,6 +106,19 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
+      <SidebarFooter className="p-4 border-t border-slate-100">
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              onClick={() => signOut()}
+              className="py-5 text-red-600 hover:text-red-700 hover:bg-red-50 transition-colors"
+            >
+              <LogOut className="size-5" />
+              <span className="font-medium">Sair do Sistema</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarFooter>
     </Sidebar>
   )
 }

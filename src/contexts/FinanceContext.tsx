@@ -78,6 +78,12 @@ export interface Shift {
   longitude?: number
 }
 
+export interface Employee {
+  id: string
+  name: string
+  active: boolean
+}
+
 interface DateRange {
   from: Date
   to: Date
@@ -97,6 +103,7 @@ interface FinanceContextData {
   debts: Debt[]
   debtInstallments: DebtInstallment[]
   shifts: Shift[]
+  employees: Employee[]
   filters: Filters
   setFilters: React.Dispatch<React.SetStateAction<Filters>>
   addTransaction: (t: Transaction) => void
@@ -110,6 +117,9 @@ interface FinanceContextData {
   updateShift: (id: string, s: Partial<Shift>) => void
   deleteShift: (id: string) => void
   payShift: (id: string, accountId: string, categoryId: string) => Promise<void>
+  addEmployee: (name: string) => Promise<void>
+  updateEmployee: (id: string, updates: Partial<Employee>) => Promise<void>
+  deleteEmployee: (id: string) => Promise<void>
   filteredTransactions: Transaction[]
   pendingTransactions: Transaction[]
   summary: { balance: number; revenue: number; expenses: number; net: number }
@@ -137,6 +147,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [debts, setDebts] = useState<Debt[]>([])
   const [debtInstallments, setDebtInstallments] = useState<DebtInstallment[]>([])
   const [shifts, setShifts] = useState<Shift[]>([])
+  const [employees, setEmployees] = useState<Employee[]>([])
   const [filters, setFilters] = useState<Filters>(initialFilters)
   const [aiDictionary, setAiDictionary] = useState<Record<string, string>>({})
 
@@ -144,14 +155,18 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     if (!session || !profile) return
 
     const fetchData = async () => {
-      // MANAGER only needs companies and shifts
+      // MANAGER only needs companies, shifts and employees
       if (profile.role === 'MANAGER') {
-        const [comps, shiftsRes] = await Promise.all([
+        const [comps, shiftsRes, empsRes] = await Promise.all([
           supabase.from('companies').select('*'),
           supabase
             .from('shifts' as any)
             .select('*')
             .order('date', { ascending: false }),
+          supabase
+            .from('employees' as any)
+            .select('*')
+            .order('name'),
         ])
         if (comps.data) setCompanies(comps.data.map((c) => ({ id: c.id, name: c.name })))
         if (shiftsRes.data) {
@@ -174,23 +189,37 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
             })),
           )
         }
+        if (empsRes.data) {
+          setEmployees(
+            empsRes.data.map((e: any) => ({
+              id: e.id,
+              name: e.name,
+              active: e.active,
+            })),
+          )
+        }
         return
       }
 
       // ADMIN fetches everything
-      const [comps, accs, cats, txs, patterns, debtsRes, instsRes, shiftsRes] = await Promise.all([
-        supabase.from('companies').select('*'),
-        supabase.from('accounts').select('*'),
-        supabase.from('categories').select('*'),
-        supabase.from('transactions').select('*').order('payment_date', { ascending: false }),
-        supabase.from('ai_patterns').select('*'),
-        supabase.from('debts').select('*').order('created_at', { ascending: false }),
-        supabase.from('debt_installments').select('*').order('due_date', { ascending: true }),
-        supabase
-          .from('shifts' as any)
-          .select('*')
-          .order('date', { ascending: false }),
-      ])
+      const [comps, accs, cats, txs, patterns, debtsRes, instsRes, shiftsRes, empsRes] =
+        await Promise.all([
+          supabase.from('companies').select('*'),
+          supabase.from('accounts').select('*'),
+          supabase.from('categories').select('*'),
+          supabase.from('transactions').select('*').order('payment_date', { ascending: false }),
+          supabase.from('ai_patterns').select('*'),
+          supabase.from('debts').select('*').order('created_at', { ascending: false }),
+          supabase.from('debt_installments').select('*').order('due_date', { ascending: true }),
+          supabase
+            .from('shifts' as any)
+            .select('*')
+            .order('date', { ascending: false }),
+          supabase
+            .from('employees' as any)
+            .select('*')
+            .order('name'),
+        ])
 
       if (comps.data) setCompanies(comps.data.map((c) => ({ id: c.id, name: c.name })))
       if (accs.data)
@@ -280,6 +309,15 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
             checkInTime: s.check_in_time || undefined,
             latitude: s.latitude ? Number(s.latitude) : undefined,
             longitude: s.longitude ? Number(s.longitude) : undefined,
+          })),
+        )
+      }
+      if (empsRes.data) {
+        setEmployees(
+          empsRes.data.map((e: any) => ({
+            id: e.id,
+            name: e.name,
+            active: e.active,
           })),
         )
       }
@@ -645,6 +683,38 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     [shifts],
   )
 
+  const addEmployee = useCallback(async (name: string) => {
+    const tempId = `temp-${Date.now()}`
+    const newEmp: Employee = { id: tempId, name, active: true }
+    setEmployees((prev) => [...prev, newEmp].sort((a, b) => a.name.localeCompare(b.name)))
+
+    const { data } = await supabase
+      .from('employees' as any)
+      .insert({ name, active: true })
+      .select()
+      .single()
+
+    if (data) {
+      setEmployees((prev) => prev.map((e) => (e.id === tempId ? { ...e, id: data.id } : e)))
+    }
+  }, [])
+
+  const updateEmployee = useCallback(async (id: string, updates: Partial<Employee>) => {
+    setEmployees((prev) => prev.map((e) => (e.id === id ? { ...e, ...updates } : e)))
+    await supabase
+      .from('employees' as any)
+      .update(updates)
+      .eq('id', id)
+  }, [])
+
+  const deleteEmployee = useCallback(async (id: string) => {
+    setEmployees((prev) => prev.filter((e) => e.id !== id))
+    await supabase
+      .from('employees' as any)
+      .delete()
+      .eq('id', id)
+  }, [])
+
   const aiSuggestCategory = useCallback(
     (description: string) => {
       const descClean = description
@@ -734,6 +804,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         debts,
         debtInstallments,
         shifts,
+        employees,
         filters,
         setFilters,
         addTransaction,
@@ -747,6 +818,9 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         updateShift,
         deleteShift,
         payShift,
+        addEmployee,
+        updateEmployee,
+        deleteEmployee,
         filteredTransactions,
         pendingTransactions,
         summary,

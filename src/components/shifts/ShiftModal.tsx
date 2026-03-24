@@ -28,7 +28,7 @@ interface ShiftModalProps {
 }
 
 export function ShiftModal({ open, onOpenChange, shift, selectedDate }: ShiftModalProps) {
-  const { companies, addShift, updateShift } = useFinance()
+  const { companies, addShift, updateShift, employees } = useFinance()
 
   const form = useForm<any>({
     defaultValues: {
@@ -124,7 +124,22 @@ export function ShiftModal({ open, onOpenChange, shift, selectedDate }: ShiftMod
                 <FormItem>
                   <FormLabel>Nome do Funcionário</FormLabel>
                   <FormControl>
-                    <Input placeholder="Ex: Maria Silva" {...field} required />
+                    <div className="relative">
+                      <Input
+                        placeholder="Ex: Maria Silva"
+                        list="employees-list"
+                        autoComplete="off"
+                        {...field}
+                        required
+                      />
+                      <datalist id="employees-list">
+                        {employees
+                          .filter((e) => e.active)
+                          .map((e) => (
+                            <option key={e.id} value={e.name} />
+                          ))}
+                      </datalist>
+                    </div>
                   </FormControl>
                 </FormItem>
               )}

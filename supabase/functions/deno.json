@@ -1,5 +1,6 @@
 {
   "_versions": {
-    "notify-manager": 1
+    "notify-manager": 1,
+    "admin-users": 1
   }
 }

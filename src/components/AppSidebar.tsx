@@ -8,6 +8,7 @@ import {
   Building2,
   BarChart3,
   Banknote,
+  CalendarDays,
 } from 'lucide-react'
 import {
   Sidebar,
@@ -26,6 +27,7 @@ const navigation = [
   { name: 'Visão Geral', to: '/', icon: LayoutDashboard },
   { name: 'Lançamentos', to: '/transactions', icon: ReceiptText },
   { name: 'Importar Extrato', to: '/import', icon: UploadCloud },
+  { name: 'Plantões', to: '/shifts', icon: CalendarDays },
   { name: 'Relatórios', to: '/reports', icon: BarChart3 },
   { name: 'Dívidas', to: '/debts', icon: Banknote },
   { name: 'Categorias', to: '/categories', icon: Tags },
@@ -34,7 +36,9 @@ const navigation = [
 
 export function AppSidebar() {
   const location = useLocation()
-  const { pendingTransactions } = useFinance()
+  const { pendingTransactions, shifts } = useFinance()
+
+  const pendingShiftsCount = shifts.filter((s) => s.status === 'PENDING').length
 
   return (
     <Sidebar className="border-r border-slate-200 glass-effect">
@@ -70,6 +74,14 @@ export function AppSidebar() {
                             className="ml-auto bg-amber-500 hover:bg-amber-600 text-[10px] px-1.5 py-0"
                           >
                             {pendingTransactions.length}
+                          </Badge>
+                        )}
+                        {item.to === '/shifts' && pendingShiftsCount > 0 && (
+                          <Badge
+                            variant="destructive"
+                            className="ml-auto bg-indigo-500 hover:bg-indigo-600 text-[10px] px-1.5 py-0"
+                          >
+                            {pendingShiftsCount}
                           </Badge>
                         )}
                       </Link>

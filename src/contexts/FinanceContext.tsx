@@ -61,6 +61,16 @@ export interface DebtInstallment {
   transactionId?: string
 }
 
+export interface Shift {
+  id: string
+  companyId: string
+  employeeName: string
+  date: string
+  amount: number
+  status: 'PENDING' | 'AUTHORIZED' | 'PAID'
+  transactionId?: string
+}
+
 interface DateRange {
   from: Date
   to: Date
@@ -79,6 +89,7 @@ interface FinanceContextData {
   companies: Company[]
   debts: Debt[]
   debtInstallments: DebtInstallment[]
+  shifts: Shift[]
   filters: Filters
   setFilters: React.Dispatch<React.SetStateAction<Filters>>
   addTransaction: (t: Transaction) => void
@@ -88,6 +99,10 @@ interface FinanceContextData {
   updateAccount: (id: string, updates: Partial<Account>) => void
   addDebt: (d: Omit<Debt, 'id'>, installments: Omit<DebtInstallment, 'id' | 'debtId'>[]) => void
   deleteDebt: (id: string) => void
+  addShift: (s: Omit<Shift, 'id' | 'transactionId'>) => void
+  updateShift: (id: string, s: Partial<Shift>) => void
+  deleteShift: (id: string) => void
+  payShift: (id: string, accountId: string, categoryId: string) => Promise<void>
   filteredTransactions: Transaction[]
   pendingTransactions: Transaction[]
   summary: { balance: number; revenue: number; expenses: number; net: number }
@@ -114,6 +129,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [companies, setCompanies] = useState<Company[]>([])
   const [debts, setDebts] = useState<Debt[]>([])
   const [debtInstallments, setDebtInstallments] = useState<DebtInstallment[]>([])
+  const [shifts, setShifts] = useState<Shift[]>([])
   const [filters, setFilters] = useState<Filters>(initialFilters)
   const [aiDictionary, setAiDictionary] = useState<Record<string, string>>({})
 
@@ -121,7 +137,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     if (!session) return
 
     const fetchData = async () => {
-      const [comps, accs, cats, txs, patterns, debtsRes, instsRes] = await Promise.all([
+      const [comps, accs, cats, txs, patterns, debtsRes, instsRes, shiftsRes] = await Promise.all([
         supabase.from('companies').select('*'),
         supabase.from('accounts').select('*'),
         supabase.from('categories').select('*'),
@@ -129,6 +145,10 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         supabase.from('ai_patterns').select('*'),
         supabase.from('debts').select('*').order('created_at', { ascending: false }),
         supabase.from('debt_installments').select('*').order('due_date', { ascending: true }),
+        supabase
+          .from('shifts' as any)
+          .select('*')
+          .order('date', { ascending: false }),
       ])
 
       if (comps.data) setCompanies(comps.data.map((c) => ({ id: c.id, name: c.name })))
@@ -199,6 +219,19 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
             amount: Number(i.amount),
             status: i.status,
             transactionId: i.transaction_id || undefined,
+          })),
+        )
+      }
+      if (shiftsRes.data) {
+        setShifts(
+          shiftsRes.data.map((s: any) => ({
+            id: s.id,
+            companyId: s.company_id,
+            employeeName: s.employee_name,
+            date: s.date,
+            amount: Number(s.amount),
+            status: s.status,
+            transactionId: s.transaction_id || undefined,
           })),
         )
       }
@@ -436,6 +469,116 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     await supabase.from('debts').delete().eq('id', id)
   }, [])
 
+  const addShift = useCallback(async (s: Omit<Shift, 'id' | 'transactionId'>) => {
+    const tempId = `temp-${Date.now()}`
+    const newShift: Shift = { ...s, id: tempId }
+    setShifts((prev) => [newShift, ...prev])
+
+    const { data } = await supabase
+      .from('shifts' as any)
+      .insert({
+        company_id: s.companyId,
+        employee_name: s.employeeName,
+        date: s.date,
+        amount: s.amount,
+        status: s.status,
+      })
+      .select()
+      .single()
+
+    if (data) {
+      setShifts((prev) =>
+        prev.map((ps) =>
+          ps.id === tempId
+            ? {
+                id: data.id,
+                companyId: data.company_id,
+                employeeName: data.employee_name,
+                date: data.date,
+                amount: Number(data.amount),
+                status: data.status,
+                transactionId: data.transaction_id || undefined,
+              }
+            : ps,
+        ),
+      )
+    }
+  }, [])
+
+  const updateShift = useCallback(async (id: string, updates: Partial<Shift>) => {
+    setShifts((prev) => prev.map((s) => (s.id === id ? { ...s, ...updates } : s)))
+    const payload: any = {}
+    if (updates.companyId) payload.company_id = updates.companyId
+    if (updates.employeeName) payload.employee_name = updates.employeeName
+    if (updates.date) payload.date = updates.date
+    if (updates.amount !== undefined) payload.amount = updates.amount
+    if (updates.status) payload.status = updates.status
+    if (updates.transactionId !== undefined) payload.transaction_id = updates.transactionId
+
+    await supabase
+      .from('shifts' as any)
+      .update(payload)
+      .eq('id', id)
+  }, [])
+
+  const deleteShift = useCallback(async (id: string) => {
+    setShifts((prev) => prev.filter((s) => s.id !== id))
+    await supabase
+      .from('shifts' as any)
+      .delete()
+      .eq('id', id)
+  }, [])
+
+  const payShift = useCallback(
+    async (shiftId: string, accountId: string, categoryId: string) => {
+      const shift = shifts.find((s) => s.id === shiftId)
+      if (!shift) return
+
+      const { data: txData } = await supabase
+        .from('transactions')
+        .insert({
+          competence_date: shift.date,
+          payment_date: new Date().toISOString(),
+          company_id: shift.companyId,
+          account_id: accountId,
+          category_id: categoryId,
+          description: `Plantão Extra: ${shift.employeeName}`,
+          value: shift.amount,
+          type: 'OUT',
+          status: 'CONFIRMED',
+        })
+        .select()
+        .single()
+
+      if (txData) {
+        const newTx: Transaction = {
+          id: txData.id,
+          competenceDate: txData.competence_date,
+          paymentDate: txData.payment_date,
+          companyId: txData.company_id,
+          accountId: txData.account_id,
+          categoryId: txData.category_id,
+          description: txData.description,
+          value: Number(txData.value),
+          type: txData.type as any,
+          status: txData.status as any,
+        }
+        setTransactions((prev) => [newTx, ...prev])
+
+        await supabase
+          .from('shifts' as any)
+          .update({ status: 'PAID', transaction_id: txData.id })
+          .eq('id', shiftId)
+        setShifts((prev) =>
+          prev.map((s) =>
+            s.id === shiftId ? { ...s, status: 'PAID', transactionId: txData.id } : s,
+          ),
+        )
+      }
+    },
+    [shifts],
+  )
+
   const aiSuggestCategory = useCallback(
     (description: string) => {
       const descClean = description
@@ -524,6 +667,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         companies,
         debts,
         debtInstallments,
+        shifts,
         filters,
         setFilters,
         addTransaction,
@@ -533,6 +677,10 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         updateAccount,
         addDebt,
         deleteDebt,
+        addShift,
+        updateShift,
+        deleteShift,
+        payShift,
         filteredTransactions,
         pendingTransactions,
         summary,

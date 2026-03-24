@@ -10,6 +10,7 @@ import Reports from './pages/Reports'
 import Debts from './pages/Debts'
 import Categories from './pages/Categories'
 import Accounts from './pages/Accounts'
+import Shifts from './pages/Shifts'
 import NotFound from './pages/NotFound'
 import { FinanceProvider } from './contexts/FinanceContext'
 import { AuthProvider, useAuth } from './hooks/use-auth'
@@ -40,6 +41,7 @@ const App = () => (
                 <Route path="/" element={<Index />} />
                 <Route path="/transactions" element={<Transactions />} />
                 <Route path="/import" element={<Import />} />
+                <Route path="/shifts" element={<Shifts />} />
                 <Route path="/reports" element={<Reports />} />
                 <Route path="/debts" element={<Debts />} />
                 <Route path="/categories" element={<Categories />} />

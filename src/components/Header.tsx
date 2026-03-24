@@ -20,6 +20,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 
 export function Header() {
   const { companies, accounts, filters, setFilters, pendingTransactions } = useFinance()
@@ -100,22 +101,30 @@ export function Header() {
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <div className="h-8 w-8 rounded-full bg-primary cursor-pointer hover:bg-primary/90 flex items-center justify-center text-white font-bold text-sm shadow-sm transition-colors">
-                {profile?.email?.substring(0, 2).toUpperCase() || 'CV'}
-              </div>
+              <Avatar className="h-9 w-9 cursor-pointer border-2 border-transparent hover:border-primary/20 transition-all">
+                <AvatarFallback className="bg-primary text-primary-foreground text-sm font-semibold shadow-sm">
+                  {profile?.email?.substring(0, 2).toUpperCase() || 'CV'}
+                </AvatarFallback>
+              </Avatar>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuLabel>Minha Conta</DropdownMenuLabel>
-              <div className="px-2 py-1.5 text-xs text-muted-foreground truncate">
-                {profile?.email}
-              </div>
+            <DropdownMenuContent align="end" className="w-64" sideOffset={8}>
+              <DropdownMenuLabel className="font-normal p-3">
+                <div className="flex flex-col space-y-1">
+                  <p className="text-sm font-medium leading-none text-slate-800">
+                    {profile?.email}
+                  </p>
+                  <p className="text-xs leading-none text-muted-foreground mt-1">
+                    {profile?.role === 'ADMIN' ? 'Administrador' : 'Gestor'}
+                  </p>
+                </div>
+              </DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 onClick={() => signOut()}
-                className="text-red-600 focus:text-red-700 focus:bg-red-50 cursor-pointer"
+                className="text-red-600 focus:text-red-700 focus:bg-red-50 cursor-pointer py-2.5"
               >
                 <LogOut className="mr-2 h-4 w-4" />
-                <span>Sair</span>
+                <span>Sair do Sistema</span>
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

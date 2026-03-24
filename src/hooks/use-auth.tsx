@@ -1,4 +1,12 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  ReactNode,
+  useRef,
+  useCallback,
+} from 'react'
 import { User, Session } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase/client'
 
@@ -31,6 +39,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [session, setSession] = useState<Session | null>(null)
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [loading, setLoading] = useState(true)
+
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const handleActivity = useCallback(() => {
+    if (timeoutRef.current) clearTimeout(timeoutRef.current)
+    if (session) {
+      timeoutRef.current = setTimeout(
+        async () => {
+          console.log('Inactivity timeout reached (30 min). Logging out...')
+          await supabase.auth.signOut()
+        },
+        30 * 60 * 1000,
+      ) // 30 minutes
+    }
+  }, [session])
 
   useEffect(() => {
     const {
@@ -78,6 +101,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     return () => subscription.unsubscribe()
   }, [])
+
+  // Auto-logout effect on inactivity
+  useEffect(() => {
+    const events = ['mousemove', 'keydown', 'mousedown', 'touchstart', 'scroll']
+
+    if (session) {
+      events.forEach((evt) => document.addEventListener(evt, handleActivity))
+      handleActivity() // Start the timer immediately upon session
+    }
+
+    return () => {
+      events.forEach((evt) => document.removeEventListener(evt, handleActivity))
+      if (timeoutRef.current) clearTimeout(timeoutRef.current)
+    }
+  }, [session, handleActivity])
 
   const signUp = async (email: string, password: string) => {
     const { error } = await supabase.auth.signUp({

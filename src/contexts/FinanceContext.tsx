@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useMemo, useCallback, useEf
 import { startOfMonth, endOfMonth, isWithinInterval } from 'date-fns'
 import { supabase } from '@/lib/supabase/client'
 import { useAuth } from '@/hooks/use-auth'
+import { toast } from '@/hooks/use-toast'
 
 export type TransactionType = 'IN' | 'OUT'
 export type ConfidenceLevel = 'high' | 'medium' | 'low'
@@ -560,7 +561,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const newShift: Shift = { ...s, id: tempId }
     setShifts((prev) => [newShift, ...prev])
 
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('shifts' as any)
       .insert({
         company_id: s.companyId,
@@ -578,6 +579,17 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       })
       .select()
       .single()
+
+    if (error) {
+      console.error('Failed to create shift:', error)
+      toast({
+        title: 'Erro ao criar',
+        description: 'Não foi possível salvar o novo plantão.',
+        variant: 'destructive',
+      })
+      setShifts((prev) => prev.filter((ps) => ps.id !== tempId)) // Revert
+      return
+    }
 
     if (data) {
       setShifts((prev) =>
@@ -606,31 +618,65 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, [])
 
   const updateShift = useCallback(async (id: string, updates: Partial<Shift>) => {
-    setShifts((prev) => prev.map((s) => (s.id === id ? { ...s, ...updates } : s)))
+    let originalShift: Shift | undefined
+    setShifts((prev) => {
+      originalShift = prev.find((s) => s.id === id)
+      return prev.map((s) => (s.id === id ? { ...s, ...updates } : s))
+    })
+
     const payload: any = {}
-    if (updates.companyId) payload.company_id = updates.companyId
-    if (updates.employeeName) payload.employee_name = updates.employeeName
-    if (updates.date) payload.date = updates.date
+    if (updates.companyId !== undefined) payload.company_id = updates.companyId
+    if (updates.employeeName !== undefined) payload.employee_name = updates.employeeName
+    if (updates.date !== undefined) payload.date = updates.date
     if (updates.amount !== undefined) payload.amount = updates.amount
-    if (updates.status) payload.status = updates.status
+    if (updates.status !== undefined) payload.status = updates.status
     if (updates.transactionId !== undefined) payload.transaction_id = updates.transactionId
     if (updates.shiftType !== undefined) payload.shift_type = updates.shiftType
     if (updates.guestName !== undefined) payload.guest_name = updates.guestName
     if (updates.reason !== undefined) payload.reason = updates.reason
     if (updates.authorizedBy !== undefined) payload.authorized_by = updates.authorizedBy
 
-    await supabase
+    const { error } = await supabase
       .from('shifts' as any)
       .update(payload)
       .eq('id', id)
+
+    if (error) {
+      console.error('Failed to update shift:', error)
+      toast({
+        title: 'Erro ao atualizar',
+        description: 'As alterações não foram salvas no banco de dados. Tente novamente.',
+        variant: 'destructive',
+      })
+      if (originalShift) {
+        setShifts((prev) => prev.map((s) => (s.id === id ? originalShift! : s)))
+      }
+    }
   }, [])
 
   const deleteShift = useCallback(async (id: string) => {
-    setShifts((prev) => prev.filter((s) => s.id !== id))
-    await supabase
+    let originalShift: Shift | undefined
+    setShifts((prev) => {
+      originalShift = prev.find((s) => s.id === id)
+      return prev.filter((s) => s.id !== id)
+    })
+
+    const { error } = await supabase
       .from('shifts' as any)
       .delete()
       .eq('id', id)
+
+    if (error) {
+      console.error('Failed to delete shift:', error)
+      toast({
+        title: 'Erro ao excluir',
+        description: 'O plantão não pôde ser excluído.',
+        variant: 'destructive',
+      })
+      if (originalShift) {
+        setShifts((prev) => [...prev, originalShift!])
+      }
+    }
   }, [])
 
   const payShift = useCallback(
@@ -638,7 +684,8 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       const shift = shifts.find((s) => s.id === shiftId)
       if (!shift) return
 
-      const { data: txData } = await supabase
+      // Create transaction
+      const { data: txData, error: txError } = await supabase
         .from('transactions')
         .insert({
           competence_date: shift.date,
@@ -654,30 +701,61 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         .select()
         .single()
 
-      if (txData) {
-        const newTx: Transaction = {
-          id: txData.id,
-          competenceDate: txData.competence_date,
-          paymentDate: txData.payment_date,
-          companyId: txData.company_id,
-          accountId: txData.account_id,
-          categoryId: txData.category_id,
-          description: txData.description,
-          value: Number(txData.value),
-          type: txData.type as any,
-          status: txData.status as any,
-        }
-        setTransactions((prev) => [newTx, ...prev])
+      if (txError || !txData) {
+        console.error('Failed to generate shift payment transaction:', txError)
+        toast({
+          title: 'Erro no Pagamento',
+          description: 'Não foi possível gerar a transação financeira no banco de dados.',
+          variant: 'destructive',
+        })
+        return
+      }
 
-        await supabase
-          .from('shifts' as any)
-          .update({ status: 'PAID', transaction_id: txData.id })
-          .eq('id', shiftId)
+      // Add transaction to UI
+      const newTx: Transaction = {
+        id: txData.id,
+        competenceDate: txData.competence_date,
+        paymentDate: txData.payment_date,
+        companyId: txData.company_id,
+        accountId: txData.account_id,
+        categoryId: txData.category_id,
+        description: txData.description,
+        value: Number(txData.value),
+        type: txData.type as any,
+        status: txData.status as any,
+      }
+      setTransactions((prev) => [newTx, ...prev])
+
+      // Update shift status
+      const { error: shiftError } = await supabase
+        .from('shifts' as any)
+        .update({ status: 'PAID', transaction_id: txData.id })
+        .eq('id', shiftId)
+
+      if (shiftError) {
+        console.error('Failed to link payment to shift:', shiftError)
+        toast({
+          title: 'Aviso',
+          description:
+            'A transação foi criada, mas não foi possível atualizar o status do plantão. O sistema continuará exibindo como pendente. Entre em contato com o suporte.',
+          variant: 'destructive',
+        })
+        // Update local state anyway to prevent immediate duplicate payments by the user
         setShifts((prev) =>
           prev.map((s) =>
             s.id === shiftId ? { ...s, status: 'PAID', transactionId: txData.id } : s,
           ),
         )
+      } else {
+        setShifts((prev) =>
+          prev.map((s) =>
+            s.id === shiftId ? { ...s, status: 'PAID', transactionId: txData.id } : s,
+          ),
+        )
+        toast({
+          title: 'Pagamento Efetivado',
+          description: 'O plantão foi pago e enviado para o histórico.',
+        })
       }
     },
     [shifts],

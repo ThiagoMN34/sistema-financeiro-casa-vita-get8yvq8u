@@ -131,7 +131,9 @@ export default function Import() {
 
   const parseNumberValue = (v: string) => {
     if (!v) return 0
-    let clean = v.replace(/[R$\s"']/gi, '').trim()
+    let clean = String(v)
+      .replace(/[R$\s"']/gi, '')
+      .trim()
 
     const isNegative = clean.startsWith('-') || (clean.startsWith('(') && clean.endsWith(')'))
     clean = clean.replace(/[()-]/g, '')
@@ -159,12 +161,12 @@ export default function Import() {
       } else {
         await parseStatementFile(file)
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error(error)
       toast({
         variant: 'destructive',
         title: 'Erro',
-        description: 'Falha ao processar arquivo. Verifique o formato.',
+        description: error.message || 'Falha ao processar arquivo. Verifique o formato.',
       })
       setStep(1)
     } finally {
@@ -175,30 +177,56 @@ export default function Import() {
 
   const parseLegacyFile = async (file: File) => {
     const text = await file.text()
-    const lines = text.split(/\r?\n/).filter((l) => l.trim())
+
+    // Validate if it is a binary Excel file instead of CSV/TXT
+    if (
+      text.includes('\x00') ||
+      text.startsWith('PK\x03\x04') ||
+      text.startsWith('\xD0\xCF\x11\xE0')
+    ) {
+      throw new Error(
+        'Arquivos Excel diretos (.xls, .xlsx) não são suportados para leitura de texto. Salve a sua planilha como "CSV (Separado por vírgulas)" e tente novamente.',
+      )
+    }
+
+    const lines = text.split(/\r?\n|\r/).filter((l) => l.trim() !== '')
     const parsed: ImportRow[] = []
 
-    let delimiter = '\t'
-    if (lines[0].includes(';') && !lines[0].includes('\t')) delimiter = ';'
-    else if (lines[0].includes(',') && !lines[0].includes('\t')) delimiter = ','
+    if (lines.length === 0) throw new Error('Arquivo vazio ou formato inválido.')
 
-    const headerLine = lines[0].toLowerCase()
-    const hasHeader =
-      headerLine.includes('pagto') ||
-      headerLine.includes('data') ||
-      headerLine.includes('valor') ||
-      headerLine.includes('hist')
-    const startIdx = hasHeader ? 1 : 0
+    let delimiter = '\t'
+    let headerIdx = -1
+
+    for (let i = 0; i < Math.min(20, lines.length); i++) {
+      const l = lines[i].toLowerCase()
+      if (
+        (l.includes('data') || l.includes('pagto') || l.includes('dt')) &&
+        (l.includes('valor') || l.includes('r$') || l.includes('hist'))
+      ) {
+        headerIdx = i
+        if (lines[i].includes(';') && !lines[i].includes('\t')) delimiter = ';'
+        else if (lines[i].includes(',') && !lines[i].includes('\t')) delimiter = ','
+        break
+      }
+    }
+
+    if (headerIdx === -1) {
+      if (lines[0].includes(';') && !lines[0].includes('\t')) delimiter = ';'
+      else if (lines[0].includes(',') && !lines[0].includes('\t')) delimiter = ','
+    }
+
+    const startIdx = headerIdx >= 0 ? headerIdx + 1 : 0
 
     let colDate = 0
     let colDesc = 1
     let colComp = 2
     let colVal = 3
 
-    if (hasHeader) {
-      const headerParts = lines[0]
+    if (headerIdx >= 0) {
+      const headerParts = lines[headerIdx]
         .split(delimiter)
         .map((p) => p.toLowerCase().trim().replace(/^"|"$/g, ''))
+
       const d = headerParts.findIndex(
         (p) => p.includes('data') || p.includes('dt') || p.includes('pagto'),
       )
@@ -244,10 +272,50 @@ export default function Import() {
 
       if (parts.length < 2) continue
 
-      const dateStr = parts[colDate] || ''
-      const desc1 = parts[colDesc] || ''
-      const desc2 = parts[colComp] || ''
-      const valStr = parts[colVal] || ''
+      let dDate = colDate
+      let dVal = colVal
+      let dDesc = colDesc
+      let dComp = colComp
+
+      // Heuristics if columns mapped are out of bounds or don't match expected types
+      if (
+        dDate >= parts.length ||
+        dVal >= parts.length ||
+        !parts[dDate] ||
+        !parseBRDate(parts[dDate]) ||
+        (parts[dVal] && isNaN(parseNumberValue(parts[dVal])))
+      ) {
+        let foundDate = -1
+        let foundVal = -1
+        for (let k = 0; k < parts.length; k++) {
+          if (foundDate === -1 && parseBRDate(parts[k])) foundDate = k
+          else if (
+            foundVal === -1 &&
+            !isNaN(parseNumberValue(parts[k])) &&
+            parseNumberValue(parts[k]) !== 0
+          ) {
+            foundVal = k
+          }
+        }
+        if (foundDate !== -1) dDate = foundDate
+        if (foundVal !== -1) dVal = foundVal
+        if (foundDate !== -1 && foundVal !== -1) {
+          for (let k = 0; k < parts.length; k++) {
+            if (k !== dDate && k !== dVal) {
+              dDesc = k
+              break
+            }
+          }
+        }
+      }
+
+      const dateStr = parts[dDate] || ''
+      const desc1 = parts[dDesc] || ''
+      const desc2 =
+        dComp >= 0 && dComp < parts.length && dComp !== dDesc && dComp !== dDate && dComp !== dVal
+          ? parts[dComp] || ''
+          : ''
+      const valStr = parts[dVal] || ''
 
       const date = parseBRDate(dateStr)
       if (!date) continue
@@ -258,7 +326,13 @@ export default function Import() {
 
       const type = rawVal >= 0 ? 'IN' : 'OUT'
       const value = Math.abs(rawVal)
-      const description = [desc1, desc2].filter(Boolean).join(' - ').substring(0, 150)
+      const description = [desc1, desc2]
+        .filter((v) => v && v.trim() !== '')
+        .join(' - ')
+        .substring(0, 150)
+
+      if (!description) continue
+
       const suggestion = aiSuggestCategory(description)
 
       parsed.push({
@@ -276,7 +350,12 @@ export default function Import() {
       })
     }
 
-    if (parsed.length === 0) throw new Error('Nenhum dado legível encontrado.')
+    if (parsed.length === 0) {
+      throw new Error(
+        'Nenhum dado legível encontrado. Verifique se o arquivo possui as colunas de Data e Valor.',
+      )
+    }
+
     toast({
       title: 'Sucesso',
       description: `${parsed.length} transações históricas identificadas.`,
@@ -286,6 +365,15 @@ export default function Import() {
 
   const parseStatementFile = async (file: File) => {
     const text = await file.text()
+
+    if (
+      text.includes('\x00') ||
+      text.startsWith('PK\x03\x04') ||
+      text.startsWith('\xD0\xCF\x11\xE0')
+    ) {
+      throw new Error('Arquivos Excel não são suportados. Salve como CSV e tente novamente.')
+    }
+
     const lines = text.split(/\r?\n/)
     const parsed: ImportRow[] = []
     const dateRegex = /(\d{2}\/\d{2}\/\d{4}|\d{4}-\d{2}-\d{2})/
@@ -484,7 +572,7 @@ export default function Import() {
                     type="file"
                     ref={fileInputRef}
                     className="hidden"
-                    accept=".xls,.xlsx,.csv,.tsv,.txt"
+                    accept=".csv,.tsv,.txt"
                     onChange={handleFileInput}
                   />
                   <UploadCloud className="size-12 mx-auto text-slate-400 mb-4" />
@@ -492,7 +580,7 @@ export default function Import() {
                     Clique ou arraste o extrato aqui
                   </h3>
                   <p className="text-sm text-muted-foreground mt-1">
-                    Formatos aceitos: CSV, TXT, Excel.
+                    Formatos aceitos: CSV, TXT. (Não use arquivos Excel direto)
                   </p>
                 </div>
               </TabsContent>
@@ -514,15 +602,19 @@ export default function Import() {
                     type="file"
                     ref={fileInputRef}
                     className="hidden"
-                    accept=".xls,.xlsx,.csv,.tsv,.txt"
+                    accept=".csv,.tsv,.txt"
                     onChange={handleFileInput}
                   />
                   <FileSpreadsheet className="size-12 mx-auto text-slate-400 mb-4" />
                   <h3 className="text-lg font-semibold text-slate-700">
-                    Clique ou arraste o arquivo legado aqui
+                    Clique ou arraste a planilha em CSV aqui
                   </h3>
                   <p className="text-sm text-muted-foreground mt-1">
                     Ideal para planilhas com colunas: Data Pagto, Histórico, Complemento, Valor.
+                    <br />
+                    <span className="text-amber-600 font-medium">
+                      Salve seu Excel como CSV antes de importar.
+                    </span>
                   </p>
                 </div>
               </TabsContent>

@@ -54,7 +54,6 @@ type ImportRow = {
   nfNumber?: string
   aiConfidence: 'high' | 'medium' | 'low'
   selected: boolean
-  originalUnit?: string
 }
 
 export default function Import() {
@@ -115,10 +114,15 @@ export default function Import() {
   const parseBRDate = (d: string) => {
     if (!d) return ''
     const clean = d.trim()
-    const parts = clean.split('/')
-    if (parts.length === 3) {
+    const parts = clean.split(/[/-]/)
+    if (parts.length >= 3) {
       let y = parts[2]
+      if (y.includes(' ')) y = y.split(' ')[0]
       if (y.length === 2) y = '20' + y
+
+      if (parts[0].length === 4) {
+        return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].substring(0, 2).padStart(2, '0')}`
+      }
       return `${y}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`
     }
     if (clean.includes('-')) return clean.split('T')[0]
@@ -127,22 +131,22 @@ export default function Import() {
 
   const parseNumberValue = (v: string) => {
     if (!v) return 0
-    const clean = v.replace(/[R$\s"']/gi, '')
-    if (/^[-+]?\d{1,3}(\.\d{3})*(,\d+)?$/.test(clean) || /^[-+]?\d+(,\d+)?$/.test(clean)) {
-      return parseFloat(clean.replace(/\./g, '').replace(',', '.'))
-    } else if (/^[-+]?\d{1,3}(,\d{3})*(\.\d+)?$/.test(clean) || /^[-+]?\d+(\.\d+)?$/.test(clean)) {
-      return parseFloat(clean.replace(/,/g, ''))
-    }
-    return parseFloat(clean) || 0
-  }
+    let clean = v.replace(/[R$\s"']/gi, '').trim()
 
-  const guessCompanyId = (unitName: string) => {
-    if (!unitName) return selectedCompanyId
-    const n = unitName.toLowerCase().trim()
-    const match = companies.find(
-      (c) => c.name.toLowerCase().includes(n) || n.includes(c.name.toLowerCase()),
-    )
-    return match ? match.id : selectedCompanyId
+    const isNegative = clean.startsWith('-') || (clean.startsWith('(') && clean.endsWith(')'))
+    clean = clean.replace(/[()-]/g, '')
+
+    const lastComma = clean.lastIndexOf(',')
+    const lastDot = clean.lastIndexOf('.')
+
+    if (lastComma > lastDot) {
+      clean = clean.replace(/\./g, '').replace(',', '.')
+    } else if (lastDot > lastComma) {
+      clean = clean.replace(/,/g, '')
+    }
+
+    const val = parseFloat(clean) || 0
+    return isNegative ? -val : val
   }
 
   const processFile = async (file: File) => {
@@ -156,7 +160,12 @@ export default function Import() {
         await parseStatementFile(file)
       }
     } catch (error) {
-      toast({ variant: 'destructive', title: 'Erro', description: 'Falha ao processar arquivo.' })
+      console.error(error)
+      toast({
+        variant: 'destructive',
+        title: 'Erro',
+        description: 'Falha ao processar arquivo. Verifique o formato.',
+      })
       setStep(1)
     } finally {
       setIsProcessing(false)
@@ -174,25 +183,75 @@ export default function Import() {
     else if (lines[0].includes(',') && !lines[0].includes('\t')) delimiter = ','
 
     const headerLine = lines[0].toLowerCase()
-    const startIdx = headerLine.includes('pagto') || headerLine.includes('valor') ? 1 : 0
+    const hasHeader =
+      headerLine.includes('pagto') ||
+      headerLine.includes('data') ||
+      headerLine.includes('valor') ||
+      headerLine.includes('hist')
+    const startIdx = hasHeader ? 1 : 0
+
+    let colDate = 0
+    let colDesc = 1
+    let colComp = 2
+    let colVal = 3
+
+    if (hasHeader) {
+      const headerParts = lines[0]
+        .split(delimiter)
+        .map((p) => p.toLowerCase().trim().replace(/^"|"$/g, ''))
+      const d = headerParts.findIndex(
+        (p) => p.includes('data') || p.includes('dt') || p.includes('pagto'),
+      )
+      const h = headerParts.findIndex(
+        (p) =>
+          p.includes('histórico') ||
+          p.includes('historico') ||
+          p.includes('hist') ||
+          p.includes('desc'),
+      )
+      const c = headerParts.findIndex((p) => p.includes('comp'))
+      const v = headerParts.findIndex((p) => p.includes('valor') || p.includes('r$'))
+
+      if (d >= 0) colDate = d
+      if (h >= 0) colDesc = h
+      if (c >= 0) colComp = c
+      if (v >= 0) colVal = v
+    }
 
     for (let i = startIdx; i < lines.length; i++) {
-      const parts = lines[i].split(delimiter).map((p) => p.trim().replace(/^"|"$/g, ''))
-      if (parts.length < 5) continue
+      const line = lines[i]
+      if (!line.trim()) continue
 
-      // Indexes based on user format: Dt. Pagto. | Compet. | Histórico | Complemento | NF | Valor | Meio | Unid. | OK? | Saldo
-      const dateStr = parts[0]
-      const compDateStr = parts[1] || parts[0]
-      const desc1 = parts[2] || ''
-      const desc2 = parts[3] || ''
-      const nf = parts[4] || ''
-      const valStr = parts[5] || '0'
-      const unid = parts[7] || ''
+      let parts: string[] = []
+      if (delimiter === '\t') {
+        parts = line.split('\t').map((p) => p.trim().replace(/^"|"$/g, ''))
+      } else {
+        let inQuotes = false
+        let current = ''
+        for (let j = 0; j < line.length; j++) {
+          const char = line[j]
+          if (char === '"') {
+            inQuotes = !inQuotes
+          } else if (char === delimiter && !inQuotes) {
+            parts.push(current.trim().replace(/^"|"$/g, ''))
+            current = ''
+          } else {
+            current += char
+          }
+        }
+        parts.push(current.trim().replace(/^"|"$/g, ''))
+      }
+
+      if (parts.length < 2) continue
+
+      const dateStr = parts[colDate] || ''
+      const desc1 = parts[colDesc] || ''
+      const desc2 = parts[colComp] || ''
+      const valStr = parts[colVal] || ''
 
       const date = parseBRDate(dateStr)
       if (!date) continue
 
-      const competenceDate = parseBRDate(compDateStr) || date
       const rawVal = parseNumberValue(valStr)
 
       if (isNaN(rawVal) || rawVal === 0) continue
@@ -201,23 +260,19 @@ export default function Import() {
       const value = Math.abs(rawVal)
       const description = [desc1, desc2].filter(Boolean).join(' - ').substring(0, 150)
       const suggestion = aiSuggestCategory(description)
-      const companyId = guessCompanyId(unid)
-      const accountId = accounts.find((a) => a.companyId === companyId)?.id || selectedAccountId
 
       parsed.push({
         id: `leg-${Date.now()}-${i}`,
         date,
-        competenceDate,
+        competenceDate: date,
         description,
         value,
         type,
         categoryId: suggestion.categoryId,
         aiConfidence: suggestion.confidence,
-        companyId,
-        accountId,
-        nfNumber: nf,
+        companyId: selectedCompanyId,
+        accountId: selectedAccountId,
         selected: true,
-        originalUnit: unid,
       })
     }
 
@@ -266,7 +321,7 @@ export default function Import() {
 
         if (
           !dateRegex.test(part) &&
-          isNaN(Number(part.replace(/[R$\s.,]/g, ''))) &&
+          isNaN(Number(part.replace(/[R$\s.,-]/g, ''))) &&
           part.length > 2
         ) {
           if (!desc) desc = part
@@ -290,11 +345,7 @@ export default function Import() {
     }
 
     if (parsed.length === 0) {
-      toast({
-        title: 'Aviso',
-        description: 'Arquivo não reconhecido. Extração de exemplo carregada.',
-      })
-      // Fallback example skipped for brevity, keeping only robust logic.
+      throw new Error('Nenhum dado legível encontrado.')
     } else {
       toast({ title: 'Sucesso', description: `${parsed.length} transações identificadas.` })
     }
@@ -471,8 +522,7 @@ export default function Import() {
                     Clique ou arraste o arquivo legado aqui
                   </h3>
                   <p className="text-sm text-muted-foreground mt-1">
-                    Ideal para planilhas com colunas: Data Pagto, Competência, Histórico, NF, Valor,
-                    Unidade.
+                    Ideal para planilhas com colunas: Data Pagto, Histórico, Complemento, Valor.
                   </p>
                 </div>
               </TabsContent>
@@ -490,7 +540,7 @@ export default function Import() {
             <div className="space-y-6">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-50 p-4 rounded-lg border max-w-3xl mx-auto">
                 <div>
-                  <Label>Empresa Padrão</Label>
+                  <Label>Empresa Destino Padrão</Label>
                   <Select value={selectedCompanyId} onValueChange={setSelectedCompanyId}>
                     <SelectTrigger className="bg-white">
                       <SelectValue placeholder="Selecione..." />
@@ -503,9 +553,6 @@ export default function Import() {
                       ))}
                     </SelectContent>
                   </Select>
-                  <p className="text-[10px] text-muted-foreground mt-1">
-                    Usada se não identificada na linha.
-                  </p>
                 </div>
                 <div>
                   <Label>Conta Bancária Padrão</Label>
@@ -536,15 +583,11 @@ export default function Import() {
                           onCheckedChange={(c) => toggleAll(!!c)}
                         />
                       </TableHead>
-                      <TableHead className="min-w-[120px]">Pgto / Compet.</TableHead>
-                      <TableHead className="min-w-[200px]">
-                        Descrição {importMode === 'legacy' && '& NF'}
-                      </TableHead>
+                      <TableHead className="min-w-[120px]">Data</TableHead>
+                      <TableHead className="min-w-[200px]">Descrição</TableHead>
                       <TableHead className="min-w-[120px]">Valor (R$)</TableHead>
                       <TableHead className="min-w-[180px]">Categoria</TableHead>
-                      {importMode === 'legacy' && (
-                        <TableHead className="min-w-[150px]">Destino (Empresa/Conta)</TableHead>
-                      )}
+                      <TableHead className="min-w-[150px]">Destino</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -560,32 +603,12 @@ export default function Import() {
                           />
                         </TableCell>
                         <TableCell className="align-top space-y-2">
-                          <div>
-                            <Label className="text-[10px] text-muted-foreground mb-1 block">
-                              Pagamento
-                            </Label>
-                            <Input
-                              type="date"
-                              value={row.date}
-                              onChange={(e) => updateRow(index, { date: e.target.value })}
-                              className="h-8 text-xs"
-                            />
-                          </div>
-                          {importMode === 'legacy' && (
-                            <div>
-                              <Label className="text-[10px] text-muted-foreground mb-1 block">
-                                Competência
-                              </Label>
-                              <Input
-                                type="date"
-                                value={row.competenceDate || row.date}
-                                onChange={(e) =>
-                                  updateRow(index, { competenceDate: e.target.value })
-                                }
-                                className="h-8 text-xs"
-                              />
-                            </div>
-                          )}
+                          <Input
+                            type="date"
+                            value={row.date}
+                            onChange={(e) => updateRow(index, { date: e.target.value })}
+                            className="h-8 text-xs"
+                          />
                         </TableCell>
                         <TableCell className="align-top space-y-2">
                           <Input
@@ -594,14 +617,6 @@ export default function Import() {
                             className="h-8 text-xs"
                             title={row.description}
                           />
-                          {importMode === 'legacy' && (
-                            <Input
-                              placeholder="NF / Doc"
-                              value={row.nfNumber || ''}
-                              onChange={(e) => updateRow(index, { nfNumber: e.target.value })}
-                              className="h-8 text-xs w-2/3"
-                            />
-                          )}
                         </TableCell>
                         <TableCell className="align-top space-y-2">
                           <Input
@@ -658,50 +673,46 @@ export default function Import() {
                             )}
                           </div>
                         </TableCell>
-                        {importMode === 'legacy' && (
-                          <TableCell className="align-top space-y-2">
-                            <Select
-                              value={row.companyId || selectedCompanyId}
-                              onValueChange={(v) => {
-                                const accs = accounts.filter((a) => a.companyId === v)
-                                updateRow(index, {
-                                  companyId: v,
-                                  accountId: accs.length > 0 ? accs[0].id : '',
-                                })
-                              }}
-                            >
-                              <SelectTrigger className="h-8 text-xs">
-                                <SelectValue placeholder="Empresa" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {companies.map((c) => (
-                                  <SelectItem key={c.id} value={c.id} className="text-xs">
-                                    {c.name}
+                        <TableCell className="align-top space-y-2">
+                          <Select
+                            value={row.companyId || selectedCompanyId}
+                            onValueChange={(v) => {
+                              const accs = accounts.filter((a) => a.companyId === v)
+                              updateRow(index, {
+                                companyId: v,
+                                accountId: accs.length > 0 ? accs[0].id : '',
+                              })
+                            }}
+                          >
+                            <SelectTrigger className="h-8 text-xs">
+                              <SelectValue placeholder="Empresa" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {companies.map((c) => (
+                                <SelectItem key={c.id} value={c.id} className="text-xs">
+                                  {c.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <Select
+                            value={row.accountId || selectedAccountId}
+                            onValueChange={(v) => updateRow(index, { accountId: v })}
+                          >
+                            <SelectTrigger className="h-8 text-xs">
+                              <SelectValue placeholder="Conta" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {accounts
+                                .filter((a) => a.companyId === (row.companyId || selectedCompanyId))
+                                .map((a) => (
+                                  <SelectItem key={a.id} value={a.id} className="text-xs">
+                                    {a.name}
                                   </SelectItem>
                                 ))}
-                              </SelectContent>
-                            </Select>
-                            <Select
-                              value={row.accountId || selectedAccountId}
-                              onValueChange={(v) => updateRow(index, { accountId: v })}
-                            >
-                              <SelectTrigger className="h-8 text-xs">
-                                <SelectValue placeholder="Conta" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {accounts
-                                  .filter(
-                                    (a) => a.companyId === (row.companyId || selectedCompanyId),
-                                  )
-                                  .map((a) => (
-                                    <SelectItem key={a.id} value={a.id} className="text-xs">
-                                      {a.name}
-                                    </SelectItem>
-                                  ))}
-                              </SelectContent>
-                            </Select>
-                          </TableCell>
-                        )}
+                            </SelectContent>
+                          </Select>
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>

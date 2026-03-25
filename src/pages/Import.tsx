@@ -151,6 +151,19 @@ export default function Import() {
     return isNegative ? -val : val
   }
 
+  const readFileAsText = async (file: File): Promise<string> => {
+    const buffer = await file.arrayBuffer()
+    try {
+      // Try decoding strictly as UTF-8 first
+      const decoder = new TextDecoder('utf-8', { fatal: true })
+      return decoder.decode(buffer)
+    } catch (e) {
+      // If it fails, fallback to Windows-1252 (ISO-8859-1) which is standard for Excel CSVs in Brazil
+      const decoder = new TextDecoder('windows-1252')
+      return decoder.decode(buffer)
+    }
+  }
+
   const processFile = async (file: File) => {
     setIsProcessing(true)
     setStep(2)
@@ -176,7 +189,7 @@ export default function Import() {
   }
 
   const parseLegacyFile = async (file: File) => {
-    const text = await file.text()
+    const text = await readFileAsText(file)
 
     if (
       text.includes('\x00') ||
@@ -415,7 +428,7 @@ export default function Import() {
   }
 
   const parseStatementFile = async (file: File) => {
-    const text = await file.text()
+    const text = await readFileAsText(file)
 
     if (
       text.includes('\x00') ||

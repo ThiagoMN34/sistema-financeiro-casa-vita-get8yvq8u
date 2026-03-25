@@ -178,7 +178,6 @@ export default function Import() {
   const parseLegacyFile = async (file: File) => {
     const text = await file.text()
 
-    // Validate if it is a binary Excel file instead of CSV/TXT
     if (
       text.includes('\x00') ||
       text.startsWith('PK\x03\x04') ||
@@ -221,6 +220,7 @@ export default function Import() {
     let colDesc = 1
     let colComp = 2
     let colVal = 3
+    let colCat = -1
 
     if (headerIdx >= 0) {
       const headerParts = lines[headerIdx]
@@ -239,12 +239,27 @@ export default function Import() {
       )
       const c = headerParts.findIndex((p) => p.includes('comp'))
       const v = headerParts.findIndex((p) => p.includes('valor') || p.includes('r$'))
+      const cat = headerParts.findIndex(
+        (p) =>
+          p.includes('categoria') ||
+          p.includes('cat') ||
+          p.includes('grupo') ||
+          p.includes('classifica'),
+      )
 
       if (d >= 0) colDate = d
       if (h >= 0) colDesc = h
       if (c >= 0) colComp = c
       if (v >= 0) colVal = v
+      if (cat >= 0) colCat = cat
     }
+
+    const normalize = (s: string) =>
+      s
+        .trim()
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
 
     for (let i = startIdx; i < lines.length; i++) {
       const line = lines[i]
@@ -277,7 +292,6 @@ export default function Import() {
       let dDesc = colDesc
       let dComp = colComp
 
-      // Heuristics if columns mapped are out of bounds or don't match expected types
       if (
         dDate >= parts.length ||
         dVal >= parts.length ||
@@ -301,7 +315,7 @@ export default function Import() {
         if (foundVal !== -1) dVal = foundVal
         if (foundDate !== -1 && foundVal !== -1) {
           for (let k = 0; k < parts.length; k++) {
-            if (k !== dDate && k !== dVal) {
+            if (k !== dDate && k !== dVal && k !== colCat) {
               dDesc = k
               break
             }
@@ -312,10 +326,16 @@ export default function Import() {
       const dateStr = parts[dDate] || ''
       const desc1 = parts[dDesc] || ''
       const desc2 =
-        dComp >= 0 && dComp < parts.length && dComp !== dDesc && dComp !== dDate && dComp !== dVal
+        dComp >= 0 &&
+        dComp < parts.length &&
+        dComp !== dDesc &&
+        dComp !== dDate &&
+        dComp !== dVal &&
+        dComp !== colCat
           ? parts[dComp] || ''
           : ''
       const valStr = parts[dVal] || ''
+      let catStr = colCat >= 0 && colCat < parts.length ? parts[colCat] || '' : ''
 
       const date = parseBRDate(dateStr)
       if (!date) continue
@@ -333,7 +353,38 @@ export default function Import() {
 
       if (!description) continue
 
-      const suggestion = aiSuggestCategory(description)
+      let categoryId = ''
+      let aiConfidence: 'high' | 'medium' | 'low' = 'low'
+
+      if (catStr) {
+        const normalizedCatStr = normalize(catStr)
+        const matchedCategory = categories.find((c) => normalize(c.name) === normalizedCatStr)
+        if (matchedCategory) {
+          categoryId = matchedCategory.id
+          aiConfidence = 'high'
+        }
+      }
+
+      if (!categoryId) {
+        for (let k = 0; k < parts.length; k++) {
+          if (k === dDate || k === dVal) continue
+          const pStr = normalize(parts[k])
+          if (!pStr) continue
+          const matchedCategory = categories.find((c) => normalize(c.name) === pStr)
+          if (matchedCategory) {
+            categoryId = matchedCategory.id
+            aiConfidence = 'high'
+            if (!catStr) catStr = parts[k]
+            break
+          }
+        }
+      }
+
+      if (!categoryId) {
+        const suggestion = aiSuggestCategory(catStr ? `${description} ${catStr}` : description)
+        categoryId = suggestion.categoryId
+        aiConfidence = suggestion.confidence
+      }
 
       parsed.push({
         id: `leg-${Date.now()}-${i}`,
@@ -342,8 +393,8 @@ export default function Import() {
         description,
         value,
         type,
-        categoryId: suggestion.categoryId,
-        aiConfidence: suggestion.confidence,
+        categoryId,
+        aiConfidence,
         companyId: selectedCompanyId,
         accountId: selectedAccountId,
         selected: true,
@@ -755,7 +806,7 @@ export default function Import() {
                             {row.aiConfidence === 'high' ? (
                               <Bot
                                 className="text-emerald-500 w-4 h-4 shrink-0"
-                                title="IA com alta confiança"
+                                title="IA com alta confiança / Correspondência Exata"
                               />
                             ) : (
                               <AlertCircle

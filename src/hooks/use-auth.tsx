@@ -71,10 +71,27 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           .from('profiles')
           .select('*')
           .eq('id', session.user.id)
-          .single()
-          .then(({ data }) => {
-            if (data) setProfile(data as UserProfile)
-            setLoading(false)
+          .maybeSingle()
+          .then(({ data, error }) => {
+            if (error) console.error('Error fetching profile:', error)
+
+            if (data) {
+              setProfile(data as UserProfile)
+              setLoading(false)
+            } else {
+              // Retry once after 2s in case the db trigger is lagging
+              setTimeout(() => {
+                supabase
+                  .from('profiles')
+                  .select('*')
+                  .eq('id', session.user.id)
+                  .maybeSingle()
+                  .then(({ data }) => {
+                    if (data) setProfile(data as UserProfile)
+                    setLoading(false)
+                  })
+              }, 2000)
+            }
           })
           .catch(() => setLoading(false))
       }
@@ -88,9 +105,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           .from('profiles')
           .select('*')
           .eq('id', session.user.id)
-          .single()
-          .then(({ data }) => {
-            if (data) setProfile(data as UserProfile)
+          .maybeSingle()
+          .then(({ data, error }) => {
+            if (error) console.error('Error fetching profile:', error)
+
+            if (data) {
+              setProfile(data as UserProfile)
+            }
             setLoading(false)
           })
           .catch(() => setLoading(false))

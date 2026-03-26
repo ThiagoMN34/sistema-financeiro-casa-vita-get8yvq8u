@@ -21,20 +21,34 @@ import { FinanceProvider } from './contexts/FinanceContext'
 import { AuthProvider, useAuth } from './hooks/use-auth'
 
 const AuthWrapper = ({ children }: { children: React.ReactNode }) => {
-  const { session, profile, loading } = useAuth()
-  if (loading)
+  const { session, profile, loading, signOut } = useAuth()
+
+  if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center text-muted-foreground">
         Carregando...
       </div>
     )
-  if (!session) return <Login />
-  if (!profile)
+  }
+
+  if (!session) {
+    return <Login />
+  }
+
+  if (!profile) {
     return (
-      <div className="min-h-screen flex items-center justify-center text-muted-foreground">
-        Preparando o seu ambiente...
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4 text-muted-foreground">
+        <p>Preparando o seu ambiente...</p>
+        <button
+          onClick={signOut}
+          className="text-sm underline text-blue-500 hover:text-blue-600 transition-colors"
+        >
+          Sair / Trocar de Conta
+        </button>
       </div>
     )
+  }
+
   return <>{children}</>
 }
 

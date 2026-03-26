@@ -55,10 +55,55 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [session])
 
+  const fetchProfile = async (currentUser: User) => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', currentUser.id)
+        .maybeSingle()
+
+      if (data) {
+        setProfile(data as UserProfile)
+      } else {
+        // Fallback: Create profile proactively if it's missing
+        const newRole = currentUser.email === 'thiagomnaves@yahoo.com.br' ? 'ADMIN' : 'MANAGER'
+        const { data: newData, error: insertError } = await supabase
+          .from('profiles')
+          .insert({
+            id: currentUser.id,
+            email: currentUser.email!,
+            role: newRole,
+          })
+          .select()
+          .maybeSingle()
+
+        if (newData) {
+          setProfile(newData as UserProfile)
+        } else {
+          console.warn('Could not auto-create profile in DB, using fallback.', insertError)
+          // Robust fallback so the UI never locks up on RoleGuard
+          setProfile({ id: currentUser.id, email: currentUser.email!, role: newRole })
+        }
+      }
+    } catch (err) {
+      console.error('Exception fetching profile:', err)
+      // Final failsafe
+      setProfile({
+        id: currentUser.id,
+        email: currentUser.email || '',
+        role: 'MANAGER',
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
   useEffect(() => {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
+      // Sync update only inside this callback block
       setSession(session)
       setUser(session?.user ?? null)
 
@@ -67,33 +112,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setLoading(false)
       } else {
         setLoading(true)
-        supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', session.user.id)
-          .maybeSingle()
-          .then(({ data, error }) => {
-            if (error) console.error('Error fetching profile:', error)
-
-            if (data) {
-              setProfile(data as UserProfile)
-              setLoading(false)
-            } else {
-              // Retry once after 2s in case the db trigger is lagging
-              setTimeout(() => {
-                supabase
-                  .from('profiles')
-                  .select('*')
-                  .eq('id', session.user.id)
-                  .maybeSingle()
-                  .then(({ data }) => {
-                    if (data) setProfile(data as UserProfile)
-                    setLoading(false)
-                  })
-              }, 2000)
-            }
-          })
-          .catch(() => setLoading(false))
+        fetchProfile(session.user)
       }
     })
 
@@ -101,20 +120,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setSession(session)
       setUser(session?.user ?? null)
       if (session?.user) {
-        supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', session.user.id)
-          .maybeSingle()
-          .then(({ data, error }) => {
-            if (error) console.error('Error fetching profile:', error)
-
-            if (data) {
-              setProfile(data as UserProfile)
-            }
-            setLoading(false)
-          })
-          .catch(() => setLoading(false))
+        fetchProfile(session.user)
       } else {
         setLoading(false)
       }

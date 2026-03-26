@@ -19,8 +19,10 @@ import {
 import { useFinance, Transaction } from '@/contexts/FinanceContext'
 import { Form, FormControl, FormField, FormItem, FormLabel } from '@/components/ui/form'
 import { Badge } from '@/components/ui/badge'
-import { Bot } from 'lucide-react'
+import { Bot, Eye, Loader2 } from 'lucide-react'
 import { formatCurrency } from '@/lib/formatters'
+import { toast } from '@/hooks/use-toast'
+import { supabase } from '@/lib/supabase/client'
 
 interface TransactionModalProps {
   open: boolean
@@ -40,7 +42,9 @@ export function TransactionModal({ open, onOpenChange, transaction }: Transactio
     aiSuggestCategory,
     learnAiMapping,
   } = useFinance()
+
   const [aiSuggestion, setAiSuggestion] = useState<{ id: string; conf: string } | null>(null)
+  const [isUploading, setIsUploading] = useState(false)
 
   const pendingInstallments = debtInstallments.filter((i) => i.status === 'PENDING')
 
@@ -56,6 +60,8 @@ export function TransactionModal({ open, onOpenChange, transaction }: Transactio
       accountId: '',
       nfNumber: '',
       debtInstallmentId: 'none',
+      nfAttachmentUrl: '',
+      pcAttachmentUrl: '',
     },
   })
 
@@ -65,6 +71,8 @@ export function TransactionModal({ open, onOpenChange, transaction }: Transactio
         ...transaction,
         date: transaction.paymentDate.split('T')[0],
         debtInstallmentId: transaction.debtInstallmentId || 'none',
+        nfAttachmentUrl: transaction.nfAttachmentUrl || '',
+        pcAttachmentUrl: transaction.pcAttachmentUrl || '',
       })
     } else {
       form.reset({
@@ -78,6 +86,8 @@ export function TransactionModal({ open, onOpenChange, transaction }: Transactio
         accountId: accounts[0]?.id || '',
         nfNumber: '',
         debtInstallmentId: 'none',
+        nfAttachmentUrl: '',
+        pcAttachmentUrl: '',
       })
     }
   }, [transaction, open, companies, accounts, form])
@@ -91,7 +101,7 @@ export function TransactionModal({ open, onOpenChange, transaction }: Transactio
     } else {
       setAiSuggestion(null)
     }
-  }, [form.watch('description')])
+  }, [form.watch('description'), transaction, aiSuggestCategory])
 
   // Auto-fill value and desc when an installment is selected
   useEffect(() => {
@@ -109,9 +119,57 @@ export function TransactionModal({ open, onOpenChange, transaction }: Transactio
         }
       }
     }
-  }, [form.watch('debtInstallmentId')])
+  }, [form.watch('debtInstallmentId'), transaction, pendingInstallments, debts, form])
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, fieldName: string) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setIsUploading(true)
+    try {
+      const fileExt = file.name.split('.').pop()
+      const fileName = `${Math.random()}.${fileExt}`
+      const filePath = `${fieldName}/${fileName}`
+
+      const { error: uploadError } = await supabase.storage
+        .from('attachments')
+        .upload(filePath, file)
+
+      if (uploadError) throw uploadError
+
+      const { data: publicUrlData } = supabase.storage.from('attachments').getPublicUrl(filePath)
+
+      form.setValue(fieldName, publicUrlData.publicUrl)
+      toast({ title: 'Upload concluído', description: 'Arquivo anexado com sucesso.' })
+    } catch (error) {
+      console.error('Upload error:', error)
+      toast({
+        title: 'Erro no upload',
+        description: 'Não foi possível enviar o arquivo.',
+        variant: 'destructive',
+      })
+    } finally {
+      setIsUploading(false)
+    }
+  }
 
   const onSubmit = (data: any) => {
+    if (
+      !data.categoryId ||
+      !data.companyId ||
+      !data.accountId ||
+      !data.description ||
+      !data.value
+    ) {
+      toast({
+        title: 'Campos obrigatórios',
+        description:
+          'Por favor, preencha todos os campos (Descrição, Valor, Categoria, Empresa, Conta).',
+        variant: 'destructive',
+      })
+      return
+    }
+
     const payload: any = {
       id: transaction ? transaction.id : Math.random().toString(36).substring(7),
       ...data,
@@ -120,6 +178,8 @@ export function TransactionModal({ open, onOpenChange, transaction }: Transactio
       competenceDate: new Date(data.date).toISOString(),
       status: data.status || 'CONFIRMED',
       debtInstallmentId: data.debtInstallmentId === 'none' ? undefined : data.debtInstallmentId,
+      nfAttachmentUrl: data.nfAttachmentUrl || undefined,
+      pcAttachmentUrl: data.pcAttachmentUrl || undefined,
     }
 
     if (data.description && data.categoryId) {
@@ -355,11 +415,85 @@ export function TransactionModal({ open, onOpenChange, transaction }: Transactio
               />
             </div>
 
+            <div className="grid grid-cols-2 gap-4 border-t pt-4">
+              <FormField
+                control={form.control}
+                name="nfAttachmentUrl"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-xs text-muted-foreground">Nota Fiscal</FormLabel>
+                    <FormControl>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          type="file"
+                          accept="image/*,.pdf"
+                          onChange={(e) => handleFileUpload(e, 'nfAttachmentUrl')}
+                          disabled={isUploading}
+                          className="text-xs flex-1 cursor-pointer"
+                        />
+                        {field.value && (
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            asChild
+                            className="shrink-0"
+                            title="Ver anexo"
+                          >
+                            <a href={field.value} target="_blank" rel="noopener noreferrer">
+                              <Eye className="h-4 w-4 text-blue-500" />
+                            </a>
+                          </Button>
+                        )}
+                      </div>
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="pcAttachmentUrl"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-xs text-muted-foreground">
+                      Pedido de Compra
+                    </FormLabel>
+                    <FormControl>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          type="file"
+                          accept="image/*,.pdf"
+                          onChange={(e) => handleFileUpload(e, 'pcAttachmentUrl')}
+                          disabled={isUploading}
+                          className="text-xs flex-1 cursor-pointer"
+                        />
+                        {field.value && (
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            asChild
+                            className="shrink-0"
+                            title="Ver anexo"
+                          >
+                            <a href={field.value} target="_blank" rel="noopener noreferrer">
+                              <Eye className="h-4 w-4 text-emerald-500" />
+                            </a>
+                          </Button>
+                        )}
+                      </div>
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+            </div>
+
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 Cancelar
               </Button>
-              <Button type="submit">Salvar</Button>
+              <Button type="submit" disabled={isUploading}>
+                {isUploading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                Salvar
+              </Button>
             </DialogFooter>
           </form>
         </Form>

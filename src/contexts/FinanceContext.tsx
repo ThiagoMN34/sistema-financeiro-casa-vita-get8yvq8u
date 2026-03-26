@@ -425,7 +425,29 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       pc_attachment_url: t.pcAttachmentUrl || null,
     }
 
-    const { data } = await supabase.from('transactions').insert(payload).select().single()
+    const { data, error } = await supabase.from('transactions').insert(payload).select().single()
+
+    if (error) {
+      console.error('Error inserting transaction:', error)
+      toast({
+        title: 'Erro ao salvar',
+        description:
+          error.message || 'Não foi possível salvar o lançamento. Verifique sua conexão.',
+        variant: 'destructive',
+      })
+      // Revert optimistic update
+      setTransactions((prev) => prev.filter((pt) => pt.id !== newTx.id))
+      if (t.debtInstallmentId) {
+        setDebtInstallments((prev) =>
+          prev.map((i) =>
+            i.id === t.debtInstallmentId
+              ? { ...i, status: 'PENDING', transactionId: undefined }
+              : i,
+          ),
+        )
+      }
+      return
+    }
 
     if (data) {
       setTransactions((prev) =>
@@ -439,8 +461,9 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, [])
 
   const updateTransaction = useCallback(async (id: string, updates: Partial<Transaction>) => {
+    let oldTx: Transaction | undefined
     setTransactions((prev) => {
-      const oldTx = prev.find((t) => t.id === id)
+      oldTx = prev.find((t) => t.id === id)
       if (
         oldTx &&
         updates.debtInstallmentId !== undefined &&
@@ -448,7 +471,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       ) {
         setDebtInstallments((prevInsts) =>
           prevInsts.map((i) => {
-            if (i.id === oldTx.debtInstallmentId)
+            if (i.id === oldTx?.debtInstallmentId)
               return { ...i, status: 'PENDING', transactionId: undefined }
             if (i.id === updates.debtInstallmentId)
               return { ...i, status: 'PAID', transactionId: id }
@@ -481,7 +504,19 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       payload.debt_installment_id = updates.debtInstallmentId || null
     if (updates.nfAttachmentUrl !== undefined) payload.nf_attachment_url = updates.nfAttachmentUrl
     if (updates.pcAttachmentUrl !== undefined) payload.pc_attachment_url = updates.pcAttachmentUrl
-    await supabase.from('transactions').update(payload).eq('id', id)
+
+    const { error } = await supabase.from('transactions').update(payload).eq('id', id)
+    if (error) {
+      console.error('Update transaction error:', error)
+      toast({
+        title: 'Erro ao atualizar',
+        description: error.message || 'Falha ao atualizar lançamento.',
+        variant: 'destructive',
+      })
+      if (oldTx) {
+        setTransactions((prev) => prev.map((t) => (t.id === id ? oldTx! : t)))
+      }
+    }
   }, [])
 
   const deleteTransaction = useCallback(async (id: string) => {

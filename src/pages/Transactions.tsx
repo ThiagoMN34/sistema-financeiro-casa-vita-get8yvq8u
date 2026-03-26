@@ -14,7 +14,7 @@ import { formatCurrency, formatDate } from '@/lib/formatters'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Search, Plus, Edit2, Bot, Trash2, UploadCloud } from 'lucide-react'
+import { Search, Plus, Edit2, Bot, Trash2, UploadCloud, Paperclip } from 'lucide-react'
 import { TransactionModal } from '@/components/transactions/TransactionModal'
 import { useToast } from '@/hooks/use-toast'
 import {
@@ -261,7 +261,15 @@ export default function Transactions() {
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-col">
-                        <span className="font-semibold text-slate-800">{tx.description}</span>
+                        <span className="font-semibold text-slate-800 flex items-center gap-1.5">
+                          {tx.description}
+                          {(tx.nfAttachmentUrl || tx.pcAttachmentUrl) && (
+                            <Paperclip
+                              className="h-3.5 w-3.5 text-slate-400"
+                              title="Possui anexo(s)"
+                            />
+                          )}
+                        </span>
                         {(tx.status === 'PENDING' || tx.status === 'AUTHORIZED') && (
                           <div className="flex items-center gap-1 mt-1">
                             <Badge

@@ -421,9 +421,11 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       status: t.status,
       ai_confidence: t.aiConfidence,
       debt_installment_id: t.debtInstallmentId || null,
-      nf_attachment_url: t.nfAttachmentUrl || null,
-      pc_attachment_url: t.pcAttachmentUrl || null,
     }
+
+    // Safely add optional columns only if defined to avoid schema cache issues if not present
+    if (t.nfAttachmentUrl !== undefined) payload.nf_attachment_url = t.nfAttachmentUrl || null
+    if (t.pcAttachmentUrl !== undefined) payload.pc_attachment_url = t.pcAttachmentUrl || null
 
     const { data, error } = await supabase.from('transactions').insert(payload).select().single()
 
@@ -502,8 +504,10 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     if (updates.aiConfidence !== undefined) payload.ai_confidence = updates.aiConfidence
     if (updates.debtInstallmentId !== undefined)
       payload.debt_installment_id = updates.debtInstallmentId || null
-    if (updates.nfAttachmentUrl !== undefined) payload.nf_attachment_url = updates.nfAttachmentUrl
-    if (updates.pcAttachmentUrl !== undefined) payload.pc_attachment_url = updates.pcAttachmentUrl
+    if (updates.nfAttachmentUrl !== undefined)
+      payload.nf_attachment_url = updates.nfAttachmentUrl || null
+    if (updates.pcAttachmentUrl !== undefined)
+      payload.pc_attachment_url = updates.pcAttachmentUrl || null
 
     const { error } = await supabase.from('transactions').update(payload).eq('id', id)
     if (error) {

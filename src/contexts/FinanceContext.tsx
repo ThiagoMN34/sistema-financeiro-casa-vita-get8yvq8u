@@ -127,6 +127,7 @@ interface FinanceContextData {
   addTransaction: (t: Transaction) => void
   updateTransaction: (id: string, t: Partial<Transaction>) => void
   deleteTransaction: (id: string) => void
+  deleteAllTransactions: () => Promise<void>
   addCategory: (c: Category) => void
   updateAccount: (id: string, updates: Partial<Account>) => void
   addDebt: (d: Omit<Debt, 'id'>, installments: Omit<DebtInstallment, 'id' | 'debtId'>[]) => void
@@ -538,6 +539,28 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       return prev.filter((t) => t.id !== id)
     })
     await supabase.from('transactions').delete().eq('id', id)
+  }, [])
+
+  const deleteAllTransactions = useCallback(async () => {
+    setTransactions([])
+    const { error } = await supabase
+      .from('transactions')
+      .delete()
+      .neq('id', '00000000-0000-0000-0000-000000000000')
+
+    if (error) {
+      console.error('Delete all error:', error)
+      toast({
+        title: 'Erro ao limpar',
+        description: 'Falha ao excluir os lançamentos.',
+        variant: 'destructive',
+      })
+    } else {
+      toast({
+        title: 'Lançamentos excluídos',
+        description: 'Todos os lançamentos foram removidos com sucesso.',
+      })
+    }
   }, [])
 
   const addCategory = useCallback(async (c: Category) => {
@@ -973,6 +996,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         addTransaction,
         updateTransaction,
         deleteTransaction,
+        deleteAllTransactions,
         addCategory,
         updateAccount,
         addDebt,

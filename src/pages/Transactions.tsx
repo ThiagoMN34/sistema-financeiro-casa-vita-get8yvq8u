@@ -37,6 +37,7 @@ export default function Transactions() {
     companies,
     accounts,
     deleteTransaction,
+    deleteAllTransactions,
     summary,
     filters,
     setFilters,
@@ -47,6 +48,7 @@ export default function Transactions() {
   const [selectedTx, setSelectedTx] = useState<Transaction | null>(null)
   const [deleteModalOpen, setDeleteModalOpen] = useState(false)
   const [txToDelete, setTxToDelete] = useState<Transaction | null>(null)
+  const [clearAllModalOpen, setClearAllModalOpen] = useState(false)
 
   const transactionsWithBalance = useMemo(() => {
     let currentBalance = summary.balance
@@ -92,6 +94,15 @@ export default function Transactions() {
       setDeleteModalOpen(false)
       setTxToDelete(null)
     }
+  }
+
+  const handleClearAllClick = () => {
+    setClearAllModalOpen(true)
+  }
+
+  const confirmClearAll = async () => {
+    await deleteAllTransactions()
+    setClearAllModalOpen(false)
   }
 
   const today = new Date()
@@ -153,7 +164,14 @@ export default function Transactions() {
           <h2 className="text-2xl font-bold tracking-tight">Lançamentos</h2>
           <p className="text-muted-foreground">Gerencie as transações do período.</p>
         </div>
-        <div className="flex w-full sm:w-auto gap-2">
+        <div className="flex flex-wrap w-full sm:w-auto gap-2">
+          <Button
+            variant="outline"
+            className="text-rose-600 hover:text-rose-700 hover:bg-rose-50 border-rose-200"
+            onClick={handleClearAllClick}
+          >
+            <Trash2 className="h-4 w-4 mr-2" /> Limpar Todos
+          </Button>
           <Button variant="outline" asChild>
             <Link to="/import">
               <UploadCloud className="h-4 w-4 mr-2" /> Importar
@@ -358,6 +376,28 @@ export default function Transactions() {
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={clearAllModalOpen} onOpenChange={setClearAllModalOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir TODOS os Lançamentos</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir <strong>TODOS</strong> os lançamentos? Esta ação é
+              irreversível e removerá todos os dados de transações cadastradas no sistema. Utilize
+              esta opção apenas durante a fase de testes.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmClearAll}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Sim, Excluir Todos
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

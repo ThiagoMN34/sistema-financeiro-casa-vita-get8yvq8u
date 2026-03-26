@@ -450,21 +450,24 @@ export default function Import() {
 
     // Detect delimiter
     let delimiter = ','
-    for (let i = 0; i < Math.min(10, lines.length); i++) {
-      if (lines[i].includes(';')) {
-        delimiter = ';'
-        break
-      } else if (lines[i].includes('\t')) {
-        delimiter = '\t'
-        break
-      }
+    let commaCount = 0
+    let semiCount = 0
+    let tabCount = 0
+
+    for (let i = 0; i < Math.min(20, lines.length); i++) {
+      commaCount += (lines[i].match(/,/g) || []).length
+      semiCount += (lines[i].match(/;/g) || []).length
+      tabCount += (lines[i].match(/\t/g) || []).length
     }
+
+    if (tabCount > semiCount && tabCount > commaCount) delimiter = '\t'
+    else if (semiCount > commaCount) delimiter = ';'
+    else delimiter = ','
 
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i]
       if (!line.trim()) continue
 
-      // Properly split considering quotes
       let parts: string[] = []
       let inQuotes = false
       let current = ''
@@ -483,12 +486,15 @@ export default function Import() {
 
       let date = ''
       let desc = ''
-      let val = 0
-      let hasVal = false
+      let numbers: number[] = []
+      let firstDecimalValue: number | null = null
 
       for (const part of parts) {
-        if (!date && dateRegex.test(part)) {
-          const match = part.match(dateRegex)
+        const p = part.trim()
+        if (!p) continue
+
+        if (!date && dateRegex.test(p)) {
+          const match = p.match(dateRegex)
           if (match) {
             if (match[1].includes('/')) {
               const [d, m, y] = match[1].split('/')
@@ -497,25 +503,41 @@ export default function Import() {
               date = match[1]
             }
           }
-        } else if (!hasVal && !dateRegex.test(part)) {
-          const raw = parseNumberValue(part)
-          if (!isNaN(raw) && raw !== 0 && part.match(/\d/)) {
-            val = raw
-            hasVal = true
-          }
-        }
+        } else {
+          // Check if it's a number
+          const hasDigits = /\d/.test(p)
+          // only numbers chars: -, +, R$, whitespace, (, ), ., , 0-9
+          const onlyNumbersChars = /^[-+R$\s().,0-9]+$/.test(p)
 
-        if (
-          !dateRegex.test(part) &&
-          isNaN(Number(part.replace(/[R$\s.,-]/g, ''))) &&
-          part.length > 2
-        ) {
-          if (!desc) desc = part
-          else desc += ` ${part}`
+          if (hasDigits && onlyNumbersChars) {
+            const raw = parseNumberValue(p)
+            if (!isNaN(raw) && raw !== 0) {
+              numbers.push(raw)
+              // Match things like 10,00 or 10.00
+              if (/[,.]\d{2}\b/.test(p) && firstDecimalValue === null) {
+                firstDecimalValue = raw
+              }
+            }
+          } else {
+            // It's part of the description
+            if (p.length > 1 && !dateRegex.test(p)) {
+              if (!desc) desc = p
+              else desc += ` ${p}`
+            }
+          }
         }
       }
 
-      if (date && hasVal && desc) {
+      let val = 0
+      let hasVal = false
+
+      if (numbers.length > 0) {
+        hasVal = true
+        val = firstDecimalValue !== null ? firstDecimalValue : numbers[0]
+      }
+
+      if (date && hasVal) {
+        if (!desc) desc = 'Lançamento Importado'
         const suggestion = aiSuggestCategory(desc)
         parsed.push({
           id: `imp-${Date.now()}-${i}`,
@@ -531,7 +553,7 @@ export default function Import() {
     }
 
     if (parsed.length === 0) {
-      throw new Error('Nenhum dado legível encontrado.')
+      throw new Error('Nenhum dado legível encontrado no arquivo.')
     } else {
       toast({ title: 'Sucesso', description: `${parsed.length} transações identificadas.` })
     }

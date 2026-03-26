@@ -142,9 +142,17 @@ export default function Import() {
     const lastDot = clean.lastIndexOf('.')
 
     if (lastComma > lastDot) {
+      // Brazilian format: 1.000,00 -> lastComma > lastDot
       clean = clean.replace(/\./g, '').replace(',', '.')
     } else if (lastDot > lastComma) {
-      clean = clean.replace(/,/g, '')
+      // US format or missing comma: 1,000.00 -> lastDot > lastComma
+      if (lastComma === -1 && clean.split('.').pop()?.length === 3) {
+        // Dot used as thousand separator in BR: e.g. "11.700" -> 11700
+        clean = clean.replace(/\./g, '')
+      } else {
+        // Proper US format: 1,000.00 -> 1000.00
+        clean = clean.replace(/,/g, '')
+      }
     }
 
     const val = parseFloat(clean) || 0
@@ -154,11 +162,9 @@ export default function Import() {
   const readFileAsText = async (file: File): Promise<string> => {
     const buffer = await file.arrayBuffer()
     try {
-      // Try decoding strictly as UTF-8 first
       const decoder = new TextDecoder('utf-8', { fatal: true })
       return decoder.decode(buffer)
     } catch (e) {
-      // If it fails, fallback to Windows-1252 (ISO-8859-1) which is standard for Excel CSVs in Brazil
       const decoder = new TextDecoder('windows-1252')
       return decoder.decode(buffer)
     }
@@ -442,10 +448,38 @@ export default function Import() {
     const parsed: ImportRow[] = []
     const dateRegex = /(\d{2}\/\d{2}\/\d{4}|\d{4}-\d{2}-\d{2})/
 
+    // Detect delimiter
+    let delimiter = ','
+    for (let i = 0; i < Math.min(10, lines.length); i++) {
+      if (lines[i].includes(';')) {
+        delimiter = ';'
+        break
+      } else if (lines[i].includes('\t')) {
+        delimiter = '\t'
+        break
+      }
+    }
+
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i]
       if (!line.trim()) continue
-      const parts = line.split(/[,\t;]/).map((p) => p.trim().replace(/^"|"$/g, ''))
+
+      // Properly split considering quotes
+      let parts: string[] = []
+      let inQuotes = false
+      let current = ''
+      for (let j = 0; j < line.length; j++) {
+        const char = line[j]
+        if (char === '"') {
+          inQuotes = !inQuotes
+        } else if (char === delimiter && !inQuotes) {
+          parts.push(current.trim().replace(/^"|"$/g, ''))
+          current = ''
+        } else {
+          current += char
+        }
+      }
+      parts.push(current.trim().replace(/^"|"$/g, ''))
 
       let date = ''
       let desc = ''
@@ -463,7 +497,7 @@ export default function Import() {
               date = match[1]
             }
           }
-        } else if (!hasVal) {
+        } else if (!hasVal && !dateRegex.test(part)) {
           const raw = parseNumberValue(part)
           if (!isNaN(raw) && raw !== 0 && part.match(/\d/)) {
             val = raw

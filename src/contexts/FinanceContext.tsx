@@ -53,9 +53,11 @@ export interface Transaction {
   nfNumber?: string
   value: number
   type: TransactionType
-  status: 'PENDING' | 'CONFIRMED'
+  status: 'PENDING' | 'AUTHORIZED' | 'CONFIRMED'
   aiConfidence?: ConfidenceLevel
   debtInstallmentId?: string
+  nfAttachmentUrl?: string
+  pcAttachmentUrl?: string
 }
 
 export interface Debt {
@@ -265,6 +267,8 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
             status: t.status as any,
             aiConfidence: t.ai_confidence as any,
             debtInstallmentId: t.debt_installment_id || undefined,
+            nfAttachmentUrl: (t as any).nf_attachment_url || undefined,
+            pcAttachmentUrl: (t as any).pc_attachment_url || undefined,
           })),
         )
       if (patterns.data) {
@@ -404,24 +408,24 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         ),
       )
 
-    const { data } = await supabase
-      .from('transactions')
-      .insert({
-        competence_date: t.competenceDate,
-        payment_date: t.paymentDate,
-        company_id: t.companyId,
-        account_id: t.accountId,
-        category_id: t.categoryId,
-        description: t.description,
-        nf_number: t.nfNumber,
-        value: t.value,
-        type: t.type,
-        status: t.status,
-        ai_confidence: t.aiConfidence,
-        debt_installment_id: t.debtInstallmentId || null,
-      })
-      .select()
-      .single()
+    const payload: any = {
+      competence_date: t.competenceDate,
+      payment_date: t.paymentDate,
+      company_id: t.companyId,
+      account_id: t.accountId,
+      category_id: t.categoryId,
+      description: t.description,
+      nf_number: t.nfNumber,
+      value: t.value,
+      type: t.type,
+      status: t.status,
+      ai_confidence: t.aiConfidence,
+      debt_installment_id: t.debtInstallmentId || null,
+      nf_attachment_url: t.nfAttachmentUrl || null,
+      pc_attachment_url: t.pcAttachmentUrl || null,
+    }
+
+    const { data } = await supabase.from('transactions').insert(payload).select().single()
 
     if (data) {
       setTransactions((prev) =>
@@ -475,6 +479,8 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     if (updates.aiConfidence !== undefined) payload.ai_confidence = updates.aiConfidence
     if (updates.debtInstallmentId !== undefined)
       payload.debt_installment_id = updates.debtInstallmentId || null
+    if (updates.nfAttachmentUrl !== undefined) payload.nf_attachment_url = updates.nfAttachmentUrl
+    if (updates.pcAttachmentUrl !== undefined) payload.pc_attachment_url = updates.pcAttachmentUrl
     await supabase.from('transactions').update(payload).eq('id', id)
   }, [])
 

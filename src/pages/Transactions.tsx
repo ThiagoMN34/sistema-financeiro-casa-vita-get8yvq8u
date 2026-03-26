@@ -262,13 +262,17 @@ export default function Transactions() {
                     <TableCell>
                       <div className="flex flex-col">
                         <span className="font-semibold text-slate-800">{tx.description}</span>
-                        {tx.status === 'PENDING' && (
+                        {(tx.status === 'PENDING' || tx.status === 'AUTHORIZED') && (
                           <div className="flex items-center gap-1 mt-1">
                             <Badge
                               variant="outline"
-                              className="text-[10px] text-amber-600 border-amber-200 bg-amber-50"
+                              className={`text-[10px] ${
+                                tx.status === 'AUTHORIZED'
+                                  ? 'text-blue-600 border-blue-200 bg-blue-50'
+                                  : 'text-amber-600 border-amber-200 bg-amber-50'
+                              }`}
                             >
-                              Revisão Pendente
+                              {tx.status === 'AUTHORIZED' ? 'Aprovado' : 'Aguardando Aprovação'}
                             </Badge>
                             {tx.aiConfidence && (
                               <Badge

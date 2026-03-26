@@ -13,6 +13,7 @@ import {
   LogOut,
   ChevronsUpDown,
   CreditCard,
+  CheckSquare,
 } from 'lucide-react'
 import {
   Sidebar,
@@ -41,6 +42,7 @@ import {
 
 const navigation = [
   { name: 'Visão Geral', to: '/', icon: LayoutDashboard },
+  { name: 'Aprovações', to: '/approvals', icon: CheckSquare },
   { name: 'Lançamentos', to: '/transactions', icon: ReceiptText },
   { name: 'Importar Extrato', to: '/import', icon: UploadCloud },
   { name: 'Plantões', to: '/shifts', icon: CalendarDays },
@@ -55,13 +57,16 @@ const navigation = [
 export function AppSidebar() {
   const location = useLocation()
   const { isMobile } = useSidebar()
-  const { pendingTransactions, shifts } = useFinance()
+  const { pendingTransactions, transactions, shifts } = useFinance()
   const { profile, signOut } = useAuth()
 
   const pendingShiftsCount = shifts.filter((s) => s.status === 'PENDING').length
+  const pendingApprovalsCount = transactions.filter(
+    (t) => t.type === 'OUT' && (t.status === 'PENDING' || t.status === 'AUTHORIZED'),
+  ).length
 
   const filteredNavigation = navigation.filter((item) => {
-    if (profile?.role === 'MANAGER') return item.to === '/shifts'
+    if (profile?.role === 'MANAGER') return item.to === '/shifts' || item.to === '/approvals'
     return true
   })
 
@@ -99,6 +104,14 @@ export function AppSidebar() {
                             className="ml-auto bg-amber-500 hover:bg-amber-600 text-[10px] px-1.5 py-0"
                           >
                             {pendingTransactions.length}
+                          </Badge>
+                        )}
+                        {item.to === '/approvals' && pendingApprovalsCount > 0 && (
+                          <Badge
+                            variant="destructive"
+                            className="ml-auto bg-rose-500 hover:bg-rose-600 text-[10px] px-1.5 py-0"
+                          >
+                            {pendingApprovalsCount}
                           </Badge>
                         )}
                         {item.to === '/shifts' && pendingShiftsCount > 0 && (

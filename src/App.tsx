@@ -13,6 +13,7 @@ import Accounts from './pages/Accounts'
 import Shifts from './pages/Shifts'
 import Users from './pages/Users'
 import CreditCards from './pages/CreditCards'
+import Approvals from './pages/Approvals'
 import NotFound from './pages/NotFound'
 import Login from './pages/Login'
 import ShiftCheckIn from './pages/ShiftCheckIn'
@@ -80,6 +81,14 @@ const App = () => (
               element={
                 <RoleGuard allowedRoles={['ADMIN']}>
                   <Transactions />
+                </RoleGuard>
+              }
+            />
+            <Route
+              path="/approvals"
+              element={
+                <RoleGuard allowedRoles={['ADMIN', 'MANAGER']}>
+                  <Approvals />
                 </RoleGuard>
               }
             />

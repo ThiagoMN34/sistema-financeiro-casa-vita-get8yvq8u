@@ -49,6 +49,7 @@ export function TransactionModal({ open, onOpenChange, transaction }: Transactio
       description: '',
       value: '',
       type: 'OUT',
+      status: 'CONFIRMED',
       date: new Date().toISOString().split('T')[0],
       categoryId: '',
       companyId: '',
@@ -70,6 +71,7 @@ export function TransactionModal({ open, onOpenChange, transaction }: Transactio
         description: '',
         value: '',
         type: 'OUT',
+        status: 'CONFIRMED',
         date: new Date().toISOString().split('T')[0],
         categoryId: '',
         companyId: companies[0]?.id || '',
@@ -116,7 +118,7 @@ export function TransactionModal({ open, onOpenChange, transaction }: Transactio
       value: Number(data.value),
       paymentDate: new Date(data.date).toISOString(),
       competenceDate: new Date(data.date).toISOString(),
-      status: 'CONFIRMED',
+      status: data.status || 'CONFIRMED',
       debtInstallmentId: data.debtInstallmentId === 'none' ? undefined : data.debtInstallmentId,
     }
 
@@ -164,7 +166,7 @@ export function TransactionModal({ open, onOpenChange, transaction }: Transactio
                 name="date"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Data de Pagamento</FormLabel>
+                    <FormLabel>Data</FormLabel>
                     <FormControl>
                       <Input type="date" {...field} />
                     </FormControl>
@@ -172,6 +174,28 @@ export function TransactionModal({ open, onOpenChange, transaction }: Transactio
                 )}
               />
             </div>
+
+            <FormField
+              control={form.control}
+              name="status"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Status do Pagamento</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="PENDING">Pendente (Aguardando Conferência)</SelectItem>
+                      <SelectItem value="AUTHORIZED">Aprovado (Pronto para Pagar)</SelectItem>
+                      <SelectItem value="CONFIRMED">Pago / Confirmado</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </FormItem>
+              )}
+            />
 
             {form.watch('type') === 'OUT' && (
               <FormField

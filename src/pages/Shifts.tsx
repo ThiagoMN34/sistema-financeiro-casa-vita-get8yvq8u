@@ -33,12 +33,14 @@ import {
   Clock,
   History,
   Users,
+  Settings,
 } from 'lucide-react'
 import { ShiftModal } from '@/components/shifts/ShiftModal'
 import { PayShiftModal } from '@/components/shifts/PayShiftModal'
 import { QrCodeModal } from '@/components/shifts/QrCodeModal'
 import { AuditLogsTab } from '@/components/shifts/AuditLogsTab'
 import { EmployeesTab } from '@/components/shifts/EmployeesTab'
+import { ShiftRatesModal } from '@/components/shifts/ShiftRatesModal'
 import {
   Table,
   TableBody,
@@ -51,7 +53,7 @@ import { formatCurrency, formatDate } from '@/lib/formatters'
 import { Badge } from '@/components/ui/badge'
 
 export default function Shifts() {
-  const { shifts, companies, updateShift, deleteShift } = useFinance()
+  const { shifts, companies, updateShift, deleteShift, shiftRates } = useFinance()
   const { profile } = useAuth()
   const [currentDate, setCurrentDate] = useState(new Date())
   const [listFilterDate, setListFilterDate] = useState<string | null>(null)
@@ -59,6 +61,7 @@ export default function Shifts() {
 
   const [modalOpen, setModalOpen] = useState(false)
   const [qrModalOpen, setQrModalOpen] = useState(false)
+  const [ratesModalOpen, setRatesModalOpen] = useState(false)
   const [selectedShift, setSelectedShift] = useState<Shift | null>(null)
   const [selectedDateForNew, setSelectedDateForNew] = useState<string | null>(null)
 
@@ -95,6 +98,17 @@ export default function Shifts() {
     setPayModalOpen(true)
   }
 
+  const handleApprove = (s: Shift) => {
+    let amount = s.amount
+    if (s.shiftType) {
+      const rate = shiftRates.find((r) => r.shiftType === s.shiftType)
+      if (rate && rate.amount > 0) {
+        amount = rate.amount
+      }
+    }
+    updateShift(s.id, { status: 'AUTHORIZED', amount })
+  }
+
   const pendingShifts = shifts
     .filter((s) => s.status === 'PENDING')
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
@@ -125,6 +139,11 @@ export default function Shifts() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {profile?.role === 'ADMIN' && (
+            <Button variant="outline" onClick={() => setRatesModalOpen(true)}>
+              <Settings className="h-4 w-4 mr-2" /> Valores
+            </Button>
+          )}
           <Button variant="outline" onClick={() => setQrModalOpen(true)}>
             <QrCode className="h-4 w-4 mr-2" /> QR Code Check-in
           </Button>
@@ -247,7 +266,7 @@ export default function Shifts() {
                               variant="outline"
                               size="sm"
                               className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 border-emerald-200"
-                              onClick={() => updateShift(s.id, { status: 'AUTHORIZED' })}
+                              onClick={() => handleApprove(s)}
                               title="Aprovar Plantão"
                             >
                               <CheckCircle2 className="h-4 w-4 mr-1" /> Aprovar
@@ -457,7 +476,7 @@ export default function Shifts() {
                                 variant="ghost"
                                 size="sm"
                                 className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                                onClick={() => updateShift(s.id, { status: 'AUTHORIZED' })}
+                                onClick={() => handleApprove(s)}
                                 title="Autorizar"
                               >
                                 <CheckCircle2 className="h-4 w-4 mr-1" /> Aprovar
@@ -608,6 +627,7 @@ export default function Shifts() {
       />
       <PayShiftModal open={payModalOpen} onOpenChange={setPayModalOpen} shift={shiftToPay} />
       <QrCodeModal open={qrModalOpen} onOpenChange={setQrModalOpen} />
+      <ShiftRatesModal open={ratesModalOpen} onOpenChange={setRatesModalOpen} />
     </div>
   )
 }

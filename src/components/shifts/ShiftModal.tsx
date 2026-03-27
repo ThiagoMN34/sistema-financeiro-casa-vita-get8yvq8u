@@ -28,7 +28,7 @@ interface ShiftModalProps {
 }
 
 export function ShiftModal({ open, onOpenChange, shift, selectedDate }: ShiftModalProps) {
-  const { companies, addShift, updateShift, employees } = useFinance()
+  const { companies, addShift, updateShift, employees, shiftRates } = useFinance()
 
   const form = useForm<any>({
     defaultValues: {
@@ -68,6 +68,18 @@ export function ShiftModal({ open, onOpenChange, shift, selectedDate }: ShiftMod
       })
     }
   }, [shift, open, selectedDate, companies, form])
+
+  useEffect(() => {
+    if (shiftType && !shift) {
+      const rate = shiftRates.find((r) => r.shiftType === shiftType)
+      if (rate && rate.amount > 0) {
+        const currentAmount = form.getValues('amount')
+        if (!currentAmount || currentAmount === '0' || currentAmount === '') {
+          form.setValue('amount', rate.amount.toString())
+        }
+      }
+    }
+  }, [shiftType, shift, shiftRates, form])
 
   const onSubmit = (data: any) => {
     const payload = {

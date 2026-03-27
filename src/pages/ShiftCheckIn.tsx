@@ -65,27 +65,39 @@ export default function ShiftCheckIn() {
 
     const dateStr = new Date().toISOString().split('T')[0]
 
-    const { data, error } = await supabase
-      .from('shifts')
-      .insert({
-        company_id: companyId,
-        employee_name: employeeName,
-        date: dateStr,
-        status: 'PENDING',
-        shift_type: shiftType,
-        guest_name: guestName || null,
-        reason: reason,
-        authorized_by: authorizedBy,
-        check_in_time: new Date().toISOString(),
-        latitude: location?.lat || null,
-        longitude: location?.lng || null,
+    // Generate ID client-side to avoid needing .select().single()
+    // which fails due to RLS blocking anonymous users from SELECTing
+    const generateId = () => {
+      if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+        return crypto.randomUUID()
+      }
+      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+        const r = (Math.random() * 16) | 0,
+          v = c === 'x' ? r : (r & 0x3) | 0x8
+        return v.toString(16)
       })
-      .select()
-      .single()
+    }
+    const shiftId = generateId()
+
+    const { error } = await supabase.from('shifts').insert({
+      id: shiftId,
+      company_id: companyId,
+      employee_name: employeeName,
+      date: dateStr,
+      status: 'PENDING',
+      shift_type: shiftType,
+      guest_name: guestName || null,
+      reason: reason,
+      authorized_by: authorizedBy,
+      check_in_time: new Date().toISOString(),
+      latitude: location?.lat || null,
+      longitude: location?.lng || null,
+    })
 
     setIsSubmitting(false)
 
     if (error) {
+      console.error('Check-in error:', error)
       toast({
         title: 'Erro',
         description: 'Não foi possível registrar o plantão. Tente novamente.',
@@ -98,7 +110,7 @@ export default function ShiftCheckIn() {
       supabase.functions
         .invoke('notify-manager', {
           body: {
-            shiftId: data?.id,
+            shiftId,
             employeeName,
             shiftType,
             date: dateStr,

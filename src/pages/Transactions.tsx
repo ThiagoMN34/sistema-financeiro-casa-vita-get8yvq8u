@@ -14,7 +14,7 @@ import { formatCurrency, formatDate } from '@/lib/formatters'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Search, Plus, Edit2, Bot, Trash2, UploadCloud, Paperclip } from 'lucide-react'
+import { Search, Plus, Edit2, Bot, Trash2, UploadCloud, Paperclip, Download } from 'lucide-react'
 import { TransactionModal } from '@/components/transactions/TransactionModal'
 import { useToast } from '@/hooks/use-toast'
 import {
@@ -28,7 +28,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { DatePickerWithRange } from '@/components/ui/date-range-picker'
-import { startOfMonth, endOfMonth, subMonths, isSameDay, endOfDay } from 'date-fns'
+import { startOfMonth, endOfMonth, subMonths, isSameDay, endOfDay, format } from 'date-fns'
 
 export default function Transactions() {
   const {
@@ -105,6 +105,59 @@ export default function Transactions() {
     setClearAllModalOpen(false)
   }
 
+  const exportToCSV = () => {
+    const headers = [
+      'Data Competência',
+      'Data Pagamento',
+      'Descrição',
+      'Categoria',
+      'Empresa',
+      'Conta',
+      'Tipo',
+      'Status',
+      'Valor',
+      'Documento/NF',
+      'Confiança IA',
+    ]
+
+    const rows = displayData.map((tx) => {
+      const categoryName = categories.find((c) => c.id === tx.categoryId)?.name || ''
+      const companyName = companies.find((c) => c.id === tx.companyId)?.name || ''
+      const accountName = accounts.find((a) => a.id === tx.accountId)?.name || ''
+      const typeName = tx.type === 'IN' ? 'Receita' : 'Despesa'
+      const statusName =
+        tx.status === 'CONFIRMED'
+          ? 'Pago/Confirmado'
+          : tx.status === 'AUTHORIZED'
+            ? 'Aprovado'
+            : 'Pendente'
+
+      return [
+        formatDate(tx.competenceDate),
+        formatDate(tx.paymentDate),
+        `"${tx.description.replace(/"/g, '""')}"`,
+        `"${categoryName}"`,
+        `"${companyName}"`,
+        `"${accountName}"`,
+        typeName,
+        statusName,
+        tx.value.toString().replace('.', ','),
+        `"${tx.nfNumber || ''}"`,
+        tx.aiConfidence || '',
+      ]
+    })
+
+    const csvContent = [headers.join(';'), ...rows.map((r) => r.join(';'))].join('\n')
+    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.setAttribute('href', url)
+    link.setAttribute('download', `lancamentos_${format(new Date(), 'yyyy-MM-dd')}.csv`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
+
   const today = new Date()
   const currentMonthRange = useMemo(
     () => ({ from: startOfMonth(today), to: endOfMonth(today) }),
@@ -165,6 +218,9 @@ export default function Transactions() {
           <p className="text-muted-foreground">Gerencie as transações do período.</p>
         </div>
         <div className="flex flex-wrap w-full sm:w-auto gap-2">
+          <Button variant="outline" className="bg-white shadow-sm" onClick={exportToCSV}>
+            <Download className="h-4 w-4 mr-2" /> Exportar CSV
+          </Button>
           <Button
             variant="outline"
             className="text-rose-600 hover:text-rose-700 hover:bg-rose-50 border-rose-200"

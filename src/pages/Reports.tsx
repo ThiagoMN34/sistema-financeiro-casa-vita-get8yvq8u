@@ -73,7 +73,7 @@ const COLORS = [
 ]
 
 export default function Reports() {
-  const { transactions, categories } = useFinance()
+  const { transactions, categories, companies, accounts } = useFinance()
 
   const [dateRange, setDateRange] = useState<{ from: Date; to: Date } | undefined>(() => ({
     from: startOfMonth(new Date()),
@@ -234,14 +234,46 @@ export default function Reports() {
   }
 
   const exportToCSV = () => {
-    const headers = ['Data', 'Descrição', 'Categoria', 'Tipo', 'Valor']
-    const rows = filteredTransactions.map((tx) => [
-      formatDate(tx.paymentDate),
-      `"${tx.description.replace(/"/g, '""')}"`,
-      `"${categories.find((c) => c.id === tx.categoryId)?.name || ''}"`,
-      tx.type === 'IN' ? 'Receita' : 'Despesa',
-      tx.value.toString().replace('.', ','),
-    ])
+    const headers = [
+      'Data Competência',
+      'Data Pagamento',
+      'Descrição',
+      'Categoria',
+      'Empresa',
+      'Conta',
+      'Tipo',
+      'Status',
+      'Valor',
+      'Documento/NF',
+      'Confiança IA',
+    ]
+
+    const rows = filteredTransactions.map((tx) => {
+      const categoryName = categories.find((c) => c.id === tx.categoryId)?.name || ''
+      const companyName = companies.find((c) => c.id === tx.companyId)?.name || ''
+      const accountName = accounts.find((a) => a.id === tx.accountId)?.name || ''
+      const typeName = tx.type === 'IN' ? 'Receita' : 'Despesa'
+      const statusName =
+        tx.status === 'CONFIRMED'
+          ? 'Pago/Confirmado'
+          : tx.status === 'AUTHORIZED'
+            ? 'Aprovado'
+            : 'Pendente'
+
+      return [
+        formatDate(tx.competenceDate),
+        formatDate(tx.paymentDate),
+        `"${tx.description.replace(/"/g, '""')}"`,
+        `"${categoryName}"`,
+        `"${companyName}"`,
+        `"${accountName}"`,
+        typeName,
+        statusName,
+        tx.value.toString().replace('.', ','),
+        `"${tx.nfNumber || ''}"`,
+        tx.aiConfidence || '',
+      ]
+    })
 
     const csvContent = [headers.join(';'), ...rows.map((r) => r.join(';'))].join('\n')
     const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' })

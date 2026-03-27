@@ -4,12 +4,12 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Bell } from 'lucide-react'
 import logoUrl from '@/assets/casavita_300rgb-1-24932.jpg'
-import { useMobile } from '@/hooks/use-mobile'
+import { useIsMobile } from '@/hooks/use-mobile'
 import { Link } from 'react-router-dom'
 
 export function Header() {
   const { user } = useAuth()
-  const isMobile = useMobile()
+  const isMobile = useIsMobile()
 
   return (
     <header className="sticky top-0 z-30 flex h-16 w-full items-center justify-between border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4 shadow-sm md:px-6">

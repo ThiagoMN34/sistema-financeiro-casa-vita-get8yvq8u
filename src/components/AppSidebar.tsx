@@ -15,9 +15,14 @@ import {
   Receipt,
   Upload,
   CheckSquare,
-  Settings,
   LogOut,
   Users,
+  CreditCard,
+  Landmark,
+  Tags,
+  PieChart,
+  Clock,
+  Building2,
 } from 'lucide-react'
 import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '@/hooks/use-auth'
@@ -25,15 +30,25 @@ import logoUrl from '@/assets/casavita_300rgb-1-24932.jpg'
 
 export function AppSidebar() {
   const { pathname } = useLocation()
-  const { signOut } = useAuth()
+  const { signOut, profile } = useAuth()
 
   const navigation = [
-    { name: 'Dashboard', href: '/', icon: LayoutDashboard },
-    { name: 'Transações', href: '/transactions', icon: Receipt },
-    { name: 'Importar Extrato', href: '/import', icon: Upload },
-    { name: 'Aprovações', href: '/approvals', icon: CheckSquare },
-    { name: 'Usuários', href: '/users', icon: Users },
+    { name: 'Dashboard', href: '/', icon: LayoutDashboard, roles: ['ADMIN'] },
+    { name: 'Transações', href: '/transactions', icon: Receipt, roles: ['ADMIN'] },
+    { name: 'Cartões', href: '/credit-cards', icon: CreditCard, roles: ['ADMIN'] },
+    { name: 'Aprovações', href: '/approvals', icon: CheckSquare, roles: ['ADMIN', 'MANAGER'] },
+    { name: 'Plantões', href: '/shifts', icon: Clock, roles: ['ADMIN', 'MANAGER'] },
+    { name: 'Importar Extrato', href: '/import', icon: Upload, roles: ['ADMIN'] },
+    { name: 'Relatórios', href: '/reports', icon: PieChart, roles: ['ADMIN'] },
+    { name: 'Dívidas', href: '/debts', icon: Landmark, roles: ['ADMIN'] },
+    { name: 'Categorias', href: '/categories', icon: Tags, roles: ['ADMIN'] },
+    { name: 'Contas', href: '/accounts', icon: Building2, roles: ['ADMIN'] },
+    { name: 'Usuários', href: '/users', icon: Users, roles: ['ADMIN'] },
   ]
+
+  const filteredNavigation = navigation.filter(
+    (item) => !item.roles || (profile && item.roles.includes(profile.role)),
+  )
 
   return (
     <Sidebar>
@@ -54,7 +69,7 @@ export function AppSidebar() {
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {navigation.map((item) => {
+              {filteredNavigation.map((item) => {
                 const isActive =
                   pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href))
                 return (

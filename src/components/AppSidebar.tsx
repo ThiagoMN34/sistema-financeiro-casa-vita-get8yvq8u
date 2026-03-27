@@ -1,127 +1,77 @@
-import { Link, useLocation } from 'react-router-dom'
-import {
-  LayoutDashboard,
-  ReceiptText,
-  Tags,
-  Landmark,
-  UploadCloud,
-  Building2,
-  BarChart3,
-  Banknote,
-  CalendarDays,
-  Users,
-  LogOut,
-  ChevronsUpDown,
-  CreditCard,
-  CheckSquare,
-} from 'lucide-react'
 import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
-  SidebarGroup,
-  SidebarGroupContent,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  useSidebar,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
 } from '@/components/ui/sidebar'
-import { useFinance } from '@/contexts/FinanceContext'
-import { useAuth } from '@/hooks/use-auth'
-import { Badge } from '@/components/ui/badge'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-
-const navigation = [
-  { name: 'Visão Geral', to: '/', icon: LayoutDashboard },
-  { name: 'Aprovações', to: '/approvals', icon: CheckSquare },
-  { name: 'Lançamentos', to: '/transactions', icon: ReceiptText },
-  { name: 'Importar Extrato', to: '/import', icon: UploadCloud },
-  { name: 'Plantões', to: '/shifts', icon: CalendarDays },
-  { name: 'Cartões de Crédito', to: '/credit-cards', icon: CreditCard },
-  { name: 'Relatórios', to: '/reports', icon: BarChart3 },
-  { name: 'Dívidas', to: '/debts', icon: Banknote },
-  { name: 'Categorias', to: '/categories', icon: Tags },
-  { name: 'Contas Bancárias', to: '/accounts', icon: Landmark },
-  { name: 'Usuários', to: '/users', icon: Users },
-]
+  LayoutDashboard,
+  Receipt,
+  Upload,
+  CheckSquare,
+  Settings,
+  LogOut,
+  Users,
+} from 'lucide-react'
+import { Link, useLocation } from 'react-router-dom'
+import { useAuth } from '@/hooks/use-auth'
+import logoUrl from '@/assets/casavita_300rgb-1-24932.jpg'
 
 export function AppSidebar() {
-  const location = useLocation()
-  const { isMobile } = useSidebar()
-  const { pendingTransactions, transactions, shifts } = useFinance()
-  const { profile, signOut } = useAuth()
+  const { pathname } = useLocation()
+  const { signOut } = useAuth()
 
-  const pendingShiftsCount = shifts.filter((s) => s.status === 'PENDING').length
-  const pendingApprovalsCount = transactions.filter(
-    (t) => t.type === 'OUT' && (t.status === 'PENDING' || t.status === 'AUTHORIZED'),
-  ).length
-
-  const filteredNavigation = navigation.filter((item) => {
-    if (profile?.role === 'MANAGER') return item.to === '/shifts' || item.to === '/approvals'
-    return true
-  })
+  const navigation = [
+    { name: 'Dashboard', href: '/', icon: LayoutDashboard },
+    { name: 'Transações', href: '/transactions', icon: Receipt },
+    { name: 'Importar Extrato', href: '/import', icon: Upload },
+    { name: 'Aprovações', href: '/approvals', icon: CheckSquare },
+    { name: 'Usuários', href: '/users', icon: Users },
+  ]
 
   return (
-    <Sidebar className="border-r border-slate-200 glass-effect flex flex-col h-full">
-      <SidebarHeader className="p-4 border-b border-slate-100 flex items-center flex-row gap-3">
-        <div className="bg-primary p-2 rounded-lg text-white">
-          <Building2 size={24} />
-        </div>
-        <div>
-          <h1 className="font-bold text-lg leading-tight text-primary">Casa Vita</h1>
-          <p className="text-xs text-muted-foreground">Sistema Financeiro</p>
-        </div>
+    <Sidebar>
+      <SidebarHeader className="border-b border-border/50 p-4 bg-background">
+        <Link
+          to="/"
+          className="flex items-center justify-center py-2 transition-opacity hover:opacity-90"
+        >
+          <img src={logoUrl} alt="Casa Vita" className="h-16 w-auto object-contain" />
+        </Link>
       </SidebarHeader>
-      <SidebarContent className="flex-1">
+
+      <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupContent className="mt-4">
+          {/* Small orange accent on the label */}
+          <SidebarGroupLabel className="text-secondary font-semibold uppercase tracking-wider text-[10px]">
+            Menu Principal
+          </SidebarGroupLabel>
+          <SidebarGroupContent>
             <SidebarMenu>
-              {filteredNavigation.map((item) => {
-                const isActive = location.pathname === item.to
+              {navigation.map((item) => {
+                const isActive =
+                  pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href))
                 return (
                   <SidebarMenuItem key={item.name}>
                     <SidebarMenuButton
                       asChild
                       isActive={isActive}
                       tooltip={item.name}
-                      className="py-5"
+                      className={
+                        isActive
+                          ? 'text-primary hover:text-primary font-medium'
+                          : 'text-muted-foreground hover:text-primary'
+                      }
                     >
-                      <Link to={item.to} className="flex items-center gap-3">
-                        <item.icon className="size-5" />
-                        <span className="font-medium">{item.name}</span>
-                        {item.to === '/transactions' && pendingTransactions.length > 0 && (
-                          <Badge
-                            variant="destructive"
-                            className="ml-auto bg-amber-500 hover:bg-amber-600 text-[10px] px-1.5 py-0"
-                          >
-                            {pendingTransactions.length}
-                          </Badge>
-                        )}
-                        {item.to === '/approvals' && pendingApprovalsCount > 0 && (
-                          <Badge
-                            variant="destructive"
-                            className="ml-auto bg-rose-500 hover:bg-rose-600 text-[10px] px-1.5 py-0"
-                          >
-                            {pendingApprovalsCount}
-                          </Badge>
-                        )}
-                        {item.to === '/shifts' && pendingShiftsCount > 0 && (
-                          <Badge
-                            variant="destructive"
-                            className="ml-auto bg-indigo-500 hover:bg-indigo-600 text-[10px] px-1.5 py-0"
-                          >
-                            {pendingShiftsCount}
-                          </Badge>
-                        )}
+                      <Link to={item.href} className="flex items-center gap-3">
+                        <item.icon className={`h-4 w-4 ${isActive ? 'text-primary' : ''}`} />
+                        <span>{item.name}</span>
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -131,60 +81,17 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-      <SidebarFooter className="border-t border-slate-100 p-2 mt-auto">
+
+      <SidebarFooter className="border-t border-border/50 p-4">
         <SidebarMenu>
           <SidebarMenuItem>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <SidebarMenuButton
-                  size="lg"
-                  className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground py-6"
-                >
-                  <Avatar className="h-8 w-8 rounded-lg">
-                    <AvatarFallback className="rounded-lg bg-primary text-primary-foreground font-semibold">
-                      {profile?.email?.substring(0, 2).toUpperCase() || 'CV'}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="grid flex-1 text-left text-sm leading-tight">
-                    <span className="truncate font-semibold text-slate-800">{profile?.email}</span>
-                    <span className="truncate text-xs text-muted-foreground">
-                      {profile?.role === 'ADMIN' ? 'Administrador' : 'Gestor'}
-                    </span>
-                  </div>
-                  <ChevronsUpDown className="ml-auto size-4" />
-                </SidebarMenuButton>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent
-                className="w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-lg"
-                side={isMobile ? 'bottom' : 'right'}
-                align="end"
-                sideOffset={4}
-              >
-                <DropdownMenuLabel className="p-0 font-normal">
-                  <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm p-2">
-                    <Avatar className="h-8 w-8 rounded-lg">
-                      <AvatarFallback className="rounded-lg bg-primary text-primary-foreground font-semibold">
-                        {profile?.email?.substring(0, 2).toUpperCase() || 'CV'}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="grid flex-1 text-left text-sm leading-tight">
-                      <span className="truncate font-semibold">{profile?.email}</span>
-                      <span className="truncate text-xs text-muted-foreground">
-                        {profile?.role === 'ADMIN' ? 'Administrador' : 'Gestor'}
-                      </span>
-                    </div>
-                  </div>
-                </DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onClick={() => signOut()}
-                  className="text-red-600 focus:text-red-700 focus:bg-red-50 cursor-pointer py-2.5"
-                >
-                  <LogOut className="mr-2 h-4 w-4" />
-                  <span>Sair do Sistema</span>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <SidebarMenuButton
+              onClick={signOut}
+              className="text-destructive hover:bg-destructive/10 hover:text-destructive transition-colors"
+            >
+              <LogOut className="h-4 w-4" />
+              <span>Sair do sistema</span>
+            </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>

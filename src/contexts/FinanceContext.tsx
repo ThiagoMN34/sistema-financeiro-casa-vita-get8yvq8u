@@ -424,7 +424,6 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       debt_installment_id: t.debtInstallmentId || null,
     }
 
-    // Safely add optional columns only if defined to avoid schema cache issues if not present
     if (t.nfAttachmentUrl !== undefined) payload.nf_attachment_url = t.nfAttachmentUrl || null
     if (t.pcAttachmentUrl !== undefined) payload.pc_attachment_url = t.pcAttachmentUrl || null
 
@@ -434,11 +433,9 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       console.error('Error inserting transaction:', error)
       toast({
         title: 'Erro ao salvar',
-        description:
-          error.message || 'Não foi possível salvar o lançamento. Verifique sua conexão.',
+        description: error.message || 'Não foi possível salvar o lançamento.',
         variant: 'destructive',
       })
-      // Revert optimistic update
       setTransactions((prev) => prev.filter((pt) => pt.id !== newTx.id))
       if (t.debtInstallmentId) {
         setDebtInstallments((prev) =>
@@ -518,9 +515,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         description: error.message || 'Falha ao atualizar lançamento.',
         variant: 'destructive',
       })
-      if (oldTx) {
-        setTransactions((prev) => prev.map((t) => (t.id === id ? oldTx! : t)))
-      }
+      if (oldTx) setTransactions((prev) => prev.map((t) => (t.id === id ? oldTx! : t)))
     }
   }, [])
 
@@ -549,17 +544,9 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       .neq('id', '00000000-0000-0000-0000-000000000000')
 
     if (error) {
-      console.error('Delete all error:', error)
-      toast({
-        title: 'Erro ao limpar',
-        description: 'Falha ao excluir os lançamentos.',
-        variant: 'destructive',
-      })
+      toast({ title: 'Erro ao limpar', description: 'Falha.', variant: 'destructive' })
     } else {
-      toast({
-        title: 'Lançamentos excluídos',
-        description: 'Todos os lançamentos foram removidos com sucesso.',
-      })
+      toast({ title: 'Sucesso', description: 'Todos removidos.' })
     }
   }, [])
 
@@ -642,52 +629,61 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const addShift = useCallback(async (s: Omit<Shift, 'id' | 'transactionId'>) => {
     const tempId = `temp-${Date.now()}`
     setShifts((prev) => [{ ...s, id: tempId }, ...prev])
-    const { data, error } = await supabase
-      .from('shifts' as any)
-      .insert({
-        company_id: s.companyId,
-        employee_name: s.employeeName,
-        date: s.date,
-        amount: s.amount,
-        status: s.status,
-        shift_type: s.shiftType,
-        guest_name: s.guestName,
-        reason: s.reason,
-        authorized_by: s.authorizedBy,
-        check_in_time: s.checkInTime,
-        latitude: s.latitude,
-        longitude: s.longitude,
+
+    try {
+      const { data, error } = await supabase
+        .from('shifts' as any)
+        .insert({
+          company_id: s.companyId,
+          employee_name: s.employeeName,
+          date: s.date,
+          amount: s.amount,
+          status: s.status,
+          shift_type: s.shiftType,
+          guest_name: s.guestName,
+          reason: s.reason,
+          authorized_by: s.authorizedBy,
+          check_in_time: s.checkInTime,
+          latitude: s.latitude,
+          longitude: s.longitude,
+        })
+        .select()
+        .single()
+
+      if (error) throw error
+
+      if (data) {
+        setShifts((prev) =>
+          prev.map((ps) =>
+            ps.id === tempId
+              ? {
+                  id: data.id,
+                  companyId: data.company_id,
+                  employeeName: data.employee_name,
+                  date: data.date,
+                  amount: Number(data.amount),
+                  status: data.status,
+                  transactionId: data.transaction_id || undefined,
+                  shiftType: data.shift_type || undefined,
+                  guestName: data.guest_name || undefined,
+                  reason: data.reason || undefined,
+                  authorizedBy: data.authorized_by || undefined,
+                  checkInTime: data.check_in_time || undefined,
+                  latitude: data.latitude ? Number(data.latitude) : undefined,
+                  longitude: data.longitude ? Number(data.longitude) : undefined,
+                }
+              : ps,
+          ),
+        )
+      }
+    } catch (error: any) {
+      console.error('addShift error:', error)
+      toast({
+        title: 'Erro ao registrar',
+        description: error.message || 'Falha de conexão. Tente novamente.',
+        variant: 'destructive',
       })
-      .select()
-      .single()
-    if (error) {
-      toast({ title: 'Erro ao criar', description: 'Falha.', variant: 'destructive' })
       setShifts((prev) => prev.filter((ps) => ps.id !== tempId))
-      return
-    }
-    if (data) {
-      setShifts((prev) =>
-        prev.map((ps) =>
-          ps.id === tempId
-            ? {
-                id: data.id,
-                companyId: data.company_id,
-                employeeName: data.employee_name,
-                date: data.date,
-                amount: Number(data.amount),
-                status: data.status,
-                transactionId: data.transaction_id || undefined,
-                shiftType: data.shift_type || undefined,
-                guestName: data.guest_name || undefined,
-                reason: data.reason || undefined,
-                authorizedBy: data.authorized_by || undefined,
-                checkInTime: data.check_in_time || undefined,
-                latitude: data.latitude ? Number(data.latitude) : undefined,
-                longitude: data.longitude ? Number(data.longitude) : undefined,
-              }
-            : ps,
-        ),
-      )
     }
   }, [])
 
@@ -709,13 +705,22 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     if (updates.reason !== undefined) payload.reason = updates.reason
     if (updates.authorizedBy !== undefined) payload.authorized_by = updates.authorizedBy
 
-    const { error } = await supabase
-      .from('shifts' as any)
-      .update(payload)
-      .eq('id', id)
-    if (error && originalShift) {
-      toast({ title: 'Erro', description: 'Falha ao atualizar.', variant: 'destructive' })
-      setShifts((prev) => prev.map((s) => (s.id === id ? originalShift! : s)))
+    try {
+      const { error } = await supabase
+        .from('shifts' as any)
+        .update(payload)
+        .eq('id', id)
+      if (error) throw error
+    } catch (error: any) {
+      console.error('updateShift error:', error)
+      toast({
+        title: 'Erro',
+        description: error.message || 'Falha ao atualizar.',
+        variant: 'destructive',
+      })
+      if (originalShift) {
+        setShifts((prev) => prev.map((s) => (s.id === id ? originalShift! : s)))
+      }
     }
   }, [])
 

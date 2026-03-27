@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { supabase } from '@/lib/supabase/client'
+import { createClient } from '@supabase/supabase-js'
+import type { Database } from '@/lib/supabase/types'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -15,6 +16,21 @@ import { Label } from '@/components/ui/label'
 import { useToast } from '@/hooks/use-toast'
 import { MapPin, CheckCircle2, Stethoscope } from 'lucide-react'
 import { Textarea } from '@/components/ui/textarea'
+
+// Cliente isolado puramente anônimo para o check-in público.
+// Ignora o localStorage para evitar erros 401 caso o celular
+// tenha uma sessão expirada salva na memória do navegador.
+const supabaseAnon = createClient<Database>(
+  import.meta.env.VITE_SUPABASE_URL as string,
+  import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string,
+  {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+      detectSessionInUrl: false,
+    },
+  },
+)
 
 export default function ShiftCheckIn() {
   const [searchParams] = useSearchParams()
@@ -35,15 +51,20 @@ export default function ShiftCheckIn() {
 
   useEffect(() => {
     const fetchCompanies = async () => {
-      const { data } = await supabase.from('companies').select('id, name')
-      if (data) setCompanies(data)
+      try {
+        const { data, error } = await supabaseAnon.from('companies').select('id, name')
+        if (error) throw error
+        if (data) setCompanies(data)
+      } catch (err) {
+        console.error('Erro ao buscar unidades:', err)
+      }
     }
     fetchCompanies()
 
     if ('geolocation' in navigator) {
       navigator.geolocation.getCurrentPosition(
         (pos) => setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-        (err) => console.warn('Geo error', err),
+        (err) => console.warn('Erro de geolocalização:', err),
         { enableHighAccuracy: true, timeout: 5000 },
       )
     }
@@ -63,51 +84,41 @@ export default function ShiftCheckIn() {
 
     setIsSubmitting(true)
 
-    const dateStr = new Date().toISOString().split('T')[0]
+    try {
+      const dateStr = new Date().toISOString().split('T')[0]
 
-    // Generate ID client-side to avoid needing .select().single()
-    // which fails due to RLS blocking anonymous users from SELECTing
-    const generateId = () => {
-      if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-        return crypto.randomUUID()
+      const generateId = () => {
+        if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+          return crypto.randomUUID()
+        }
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+          const r = (Math.random() * 16) | 0,
+            v = c === 'x' ? r : (r & 0x3) | 0x8
+          return v.toString(16)
+        })
       }
-      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
-        const r = (Math.random() * 16) | 0,
-          v = c === 'x' ? r : (r & 0x3) | 0x8
-        return v.toString(16)
+      const shiftId = generateId()
+
+      const { error } = await supabaseAnon.from('shifts').insert({
+        id: shiftId,
+        company_id: companyId,
+        employee_name: employeeName,
+        date: dateStr,
+        status: 'PENDING',
+        shift_type: shiftType,
+        guest_name: guestName || null,
+        reason: reason,
+        authorized_by: authorizedBy,
+        check_in_time: new Date().toISOString(),
+        latitude: location?.lat ?? null,
+        longitude: location?.lng ?? null,
       })
-    }
-    const shiftId = generateId()
 
-    const { error } = await supabase.from('shifts').insert({
-      id: shiftId,
-      company_id: companyId,
-      employee_name: employeeName,
-      date: dateStr,
-      status: 'PENDING',
-      shift_type: shiftType,
-      guest_name: guestName || null,
-      reason: reason,
-      authorized_by: authorizedBy,
-      check_in_time: new Date().toISOString(),
-      latitude: location?.lat || null,
-      longitude: location?.lng || null,
-    })
+      if (error) throw error
 
-    setIsSubmitting(false)
-
-    if (error) {
-      console.error('Check-in error:', error)
-      toast({
-        title: 'Erro',
-        description: 'Não foi possível registrar o plantão. Tente novamente.',
-        variant: 'destructive',
-      })
-    } else {
       setSuccess(true)
 
-      // Notify the manager asynchronously via Edge Function
-      supabase.functions
+      supabaseAnon.functions
         .invoke('notify-manager', {
           body: {
             shiftId,
@@ -117,6 +128,16 @@ export default function ShiftCheckIn() {
           },
         })
         .catch((err) => console.error('Failed to dispatch notification', err))
+    } catch (error: any) {
+      console.error('Check-in error:', error)
+      toast({
+        title: 'Erro ao registrar',
+        description:
+          error.message || 'Não foi possível registrar o plantão. Verifique sua conexão.',
+        variant: 'destructive',
+      })
+    } finally {
+      setIsSubmitting(false)
     }
   }
 

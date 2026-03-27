@@ -97,6 +97,8 @@ export function ShiftModal({ open, onOpenChange, shift, selectedDate }: ShiftMod
     onOpenChange(false)
   }
 
+  const isPendingOrNew = !shift || shift.status === 'PENDING'
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[450px]">
@@ -157,7 +159,7 @@ export function ShiftModal({ open, onOpenChange, shift, selectedDate }: ShiftMod
               )}
             />
 
-            <div className="grid grid-cols-2 gap-4">
+            {isPendingOrNew ? (
               <FormField
                 control={form.control}
                 name="date"
@@ -170,19 +172,34 @@ export function ShiftModal({ open, onOpenChange, shift, selectedDate }: ShiftMod
                   </FormItem>
                 )}
               />
-              <FormField
-                control={form.control}
-                name="amount"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Valor (R$)</FormLabel>
-                    <FormControl>
-                      <Input type="number" step="0.01" {...field} />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-            </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="date"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Data do Plantão</FormLabel>
+                      <FormControl>
+                        <Input type="date" {...field} required />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="amount"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Valor (R$)</FormLabel>
+                      <FormControl>
+                        <Input type="number" step="0.01" {...field} />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+              </div>
+            )}
 
             <FormField
               control={form.control}

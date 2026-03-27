@@ -209,14 +209,13 @@ export default function Shifts() {
                     <TableHead>Funcionário / Tipo</TableHead>
                     <TableHead>Unidade</TableHead>
                     <TableHead>Motivo</TableHead>
-                    <TableHead className="text-right">Valor</TableHead>
                     <TableHead className="text-right w-[150px]">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {pendingShifts.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
+                      <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
                         Nenhum plantão aguardando aprovação.
                       </TableCell>
                     </TableRow>
@@ -256,9 +255,6 @@ export default function Shifts() {
                           title={s.reason || ''}
                         >
                           {s.reason || '-'}
-                        </TableCell>
-                        <TableCell className="text-right font-medium">
-                          {formatCurrency(s.amount)}
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-1">
@@ -443,7 +439,7 @@ export default function Shifts() {
                           {companies.find((c) => c.id === s.companyId)?.name}
                         </TableCell>
                         <TableCell className="text-right font-medium">
-                          {formatCurrency(s.amount)}
+                          {s.status === 'PENDING' ? '-' : formatCurrency(s.amount)}
                         </TableCell>
                         <TableCell className="text-center">
                           {s.status === 'PAID' ? (

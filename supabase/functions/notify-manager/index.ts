@@ -15,16 +15,13 @@ Deno.serve(async (req: Request) => {
       shiftId,
       employeeName,
       shiftType,
-      date,
+      date
     })
 
-    return new Response(
-      JSON.stringify({ success: true, message: 'Manager successfully notified' }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200,
-      },
-    )
+    return new Response(JSON.stringify({ success: true, message: 'Manager successfully notified' }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      status: 200,
+    })
   } catch (error) {
     return new Response(JSON.stringify({ error: error.message }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

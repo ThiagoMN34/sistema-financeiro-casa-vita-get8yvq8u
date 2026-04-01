@@ -1,5 +1,4 @@
-import { useState } from 'react'
-import { useFinance, Employee } from '@/contexts/FinanceContext'
+import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -11,57 +10,75 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { Pencil, Trash2, Plus, Check, X } from 'lucide-react'
-import { Switch } from '@/components/ui/switch'
+import { Pencil, Trash2, Plus, Search } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
+import { supabase } from '@/lib/supabase/client'
+import { useToast } from '@/hooks/use-toast'
+import { EmployeeSheet } from './EmployeeSheet'
 
 export function EmployeesTab() {
-  const { employees, addEmployee, updateEmployee, deleteEmployee } = useFinance()
-  const [newName, setNewName] = useState('')
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [editName, setEditName] = useState('')
+  const [employees, setEmployees] = useState<any[]>([])
+  const [search, setSearch] = useState('')
+  const [sheetOpen, setSheetOpen] = useState(false)
+  const [selectedEmployee, setSelectedEmployee] = useState<any>(null)
+  const { toast } = useToast()
 
-  const handleAdd = async () => {
-    if (!newName.trim()) return
-    await addEmployee(newName.trim())
-    setNewName('')
+  const fetchEmployees = async () => {
+    const { data } = await supabase.from('employees').select('*').order('name', { ascending: true })
+    if (data) setEmployees(data)
   }
 
-  const handleEdit = (e: Employee) => {
-    setEditingId(e.id)
-    setEditName(e.name)
+  useEffect(() => {
+    fetchEmployees()
+  }, [])
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Deseja realmente excluir este funcionário?')) return
+    const { error } = await supabase.from('employees').delete().eq('id', id)
+    if (error) {
+      toast({ title: 'Erro', description: 'Não foi possível excluir.', variant: 'destructive' })
+      return
+    }
+    fetchEmployees()
+    toast({ title: 'Sucesso', description: 'Funcionário excluído.' })
   }
 
-  const handleSaveEdit = async () => {
-    if (!editingId || !editName.trim()) return
-    await updateEmployee(editingId, { name: editName.trim() })
-    setEditingId(null)
-    setEditName('')
+  const handleEdit = (emp: any) => {
+    setSelectedEmployee(emp)
+    setSheetOpen(true)
   }
 
-  const handleCancelEdit = () => {
-    setEditingId(null)
-    setEditName('')
+  const handleNew = () => {
+    setSelectedEmployee(null)
+    setSheetOpen(true)
   }
+
+  const filtered = employees.filter((e) => e.name.toLowerCase().includes(search.toLowerCase()))
 
   return (
     <Card className="shadow-sm border-slate-200">
-      <CardHeader className="border-b">
-        <CardTitle className="text-lg">Funcionários para Plantões</CardTitle>
-        <CardDescription>
-          Gerencie a lista de funcionários que podem ser selecionados ao lançar um novo plantão.
-        </CardDescription>
+      <CardHeader className="border-b flex flex-row items-center justify-between py-4">
+        <div>
+          <CardTitle className="text-lg">Cadastro de Funcionários</CardTitle>
+          <CardDescription>
+            Gerencie o cadastro completo dos colaboradores e suas permissões para plantões.
+          </CardDescription>
+        </div>
+        <Button onClick={handleNew}>
+          <Plus className="w-4 h-4 mr-2" /> Novo Funcionário
+        </Button>
       </CardHeader>
       <CardContent className="p-6">
-        <div className="flex gap-2 mb-6 max-w-md">
-          <Input
-            placeholder="Nome do funcionário"
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
-          />
-          <Button onClick={handleAdd}>
-            <Plus className="w-4 h-4 mr-2" /> Adicionar
-          </Button>
+        <div className="flex gap-2 mb-6 max-w-sm">
+          <div className="relative flex-1">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
+            <Input
+              placeholder="Buscar por nome..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-9"
+            />
+          </div>
         </div>
 
         <div className="border rounded-md">
@@ -69,75 +86,59 @@ export function EmployeesTab() {
             <TableHeader className="bg-slate-50">
               <TableRow>
                 <TableHead>Nome</TableHead>
-                <TableHead className="w-[120px] text-center">Ativo</TableHead>
-                <TableHead className="text-right w-[120px]">Ações</TableHead>
+                <TableHead>Cargo / Área</TableHead>
+                <TableHead>Lotação</TableHead>
+                <TableHead className="w-[120px] text-center">Status</TableHead>
+                <TableHead className="text-right w-[100px]">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {employees.length === 0 ? (
+              {filtered.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={3} className="text-center py-8 text-muted-foreground">
-                    Nenhum funcionário cadastrado.
+                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                    Nenhum funcionário encontrado.
                   </TableCell>
                 </TableRow>
               ) : (
-                employees.map((emp) => (
+                filtered.map((emp) => (
                   <TableRow key={emp.id}>
-                    <TableCell className="font-medium">
-                      {editingId === emp.id ? (
-                        <div className="flex items-center gap-2 max-w-sm">
-                          <Input
-                            value={editName}
-                            onChange={(e) => setEditName(e.target.value)}
-                            onKeyDown={(e) => e.key === 'Enter' && handleSaveEdit()}
-                            autoFocus
-                          />
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="text-emerald-600 hover:bg-emerald-50"
-                            onClick={handleSaveEdit}
-                          >
-                            <Check className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="text-slate-400 hover:bg-slate-100"
-                            onClick={handleCancelEdit}
-                          >
-                            <X className="w-4 h-4" />
-                          </Button>
-                        </div>
+                    <TableCell className="font-medium">{emp.name}</TableCell>
+                    <TableCell>
+                      <div className="text-sm">{emp.role || '-'}</div>
+                      <div className="text-xs text-muted-foreground">{emp.department || '-'}</div>
+                    </TableCell>
+                    <TableCell className="text-sm">{emp.workplace || '-'}</TableCell>
+                    <TableCell className="text-center">
+                      {emp.active ? (
+                        <Badge
+                          variant="outline"
+                          className="bg-emerald-50 text-emerald-700 border-emerald-200"
+                        >
+                          Ativo
+                        </Badge>
                       ) : (
-                        <span className={emp.active ? '' : 'text-slate-400 line-through'}>
-                          {emp.name}
-                        </span>
+                        <Badge
+                          variant="outline"
+                          className="bg-rose-50 text-rose-700 border-rose-200"
+                        >
+                          Inativo
+                        </Badge>
                       )}
                     </TableCell>
-                    <TableCell className="text-center">
-                      <Switch
-                        checked={emp.active}
-                        onCheckedChange={(checked) => updateEmployee(emp.id, { active: checked })}
-                        disabled={editingId === emp.id}
-                      />
-                    </TableCell>
                     <TableCell className="text-right">
-                      {!editingId || editingId !== emp.id ? (
-                        <div className="flex justify-end gap-1">
-                          <Button variant="ghost" size="icon" onClick={() => handleEdit(emp)}>
-                            <Pencil className="h-4 w-4 text-slate-400" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="text-rose-500 hover:text-rose-600 hover:bg-rose-50"
-                            onClick={() => deleteEmployee(emp.id)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      ) : null}
+                      <div className="flex justify-end gap-1">
+                        <Button variant="ghost" size="icon" onClick={() => handleEdit(emp)}>
+                          <Pencil className="h-4 w-4 text-slate-400" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="text-rose-500 hover:text-rose-600 hover:bg-rose-50"
+                          onClick={() => handleDelete(emp.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))
@@ -146,6 +147,13 @@ export function EmployeesTab() {
           </Table>
         </div>
       </CardContent>
+
+      <EmployeeSheet
+        open={sheetOpen}
+        onOpenChange={setSheetOpen}
+        employee={selectedEmployee}
+        onSuccess={fetchEmployees}
+      />
     </Card>
   )
 }

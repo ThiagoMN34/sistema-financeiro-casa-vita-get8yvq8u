@@ -19,6 +19,8 @@ import {
 import { useFinance, Shift } from '@/contexts/FinanceContext'
 import { Form, FormControl, FormField, FormItem, FormLabel } from '@/components/ui/form'
 import { Textarea } from '@/components/ui/textarea'
+import { supabase } from '@/lib/supabase/client'
+import { useState } from 'react'
 
 interface ShiftModalProps {
   open: boolean
@@ -28,7 +30,28 @@ interface ShiftModalProps {
 }
 
 export function ShiftModal({ open, onOpenChange, shift, selectedDate }: ShiftModalProps) {
-  const { companies, addShift, updateShift, employees, shiftRates } = useFinance()
+  const { companies, addShift, updateShift, shiftRates } = useFinance()
+  const [employeesList, setEmployeesList] = useState<any[]>([])
+  const [reasonsList, setReasonsList] = useState<any[]>([])
+
+  useEffect(() => {
+    const fetchSelectData = async () => {
+      const { data: empData } = await supabase
+        .from('employees')
+        .select('id, name, active')
+        .order('name')
+      if (empData) setEmployeesList(empData)
+
+      const { data: reasonData } = await supabase
+        .from('shift_reasons')
+        .select('id, reason')
+        .order('reason')
+      if (reasonData) setReasonsList(reasonData)
+    }
+    if (open) {
+      fetchSelectData()
+    }
+  }, [open])
 
   const form = useForm<any>({
     defaultValues: {
@@ -147,7 +170,7 @@ export function ShiftModal({ open, onOpenChange, shift, selectedDate }: ShiftMod
                         required
                       />
                       <datalist id="employees-list">
-                        {employees
+                        {employeesList
                           .filter((e) => e.active)
                           .map((e) => (
                             <option key={e.id} value={e.name} />
@@ -245,14 +268,20 @@ export function ShiftModal({ open, onOpenChange, shift, selectedDate }: ShiftMod
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Motivo / Justificativa</FormLabel>
-                  <FormControl>
-                    <Textarea
-                      placeholder="Por que este plantão foi necessário?"
-                      {...field}
-                      rows={2}
-                      className="resize-none"
-                    />
-                  </FormControl>
+                  <Select onValueChange={field.onChange} value={field.value || ''}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione o motivo" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {reasonsList.map((r) => (
+                        <SelectItem key={r.id} value={r.reason}>
+                          {r.reason}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </FormItem>
               )}
             />

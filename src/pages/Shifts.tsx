@@ -41,6 +41,7 @@ import { QrCodeModal } from '@/components/shifts/QrCodeModal'
 import { AuditLogsTab } from '@/components/shifts/AuditLogsTab'
 import { EmployeesTab } from '@/components/shifts/EmployeesTab'
 import { ShiftRatesModal } from '@/components/shifts/ShiftRatesModal'
+import { ShiftReasonsModal } from '@/components/shifts/ShiftReasonsModal'
 import {
   Table,
   TableBody,
@@ -62,6 +63,7 @@ export default function Shifts() {
   const [modalOpen, setModalOpen] = useState(false)
   const [qrModalOpen, setQrModalOpen] = useState(false)
   const [ratesModalOpen, setRatesModalOpen] = useState(false)
+  const [reasonsModalOpen, setReasonsModalOpen] = useState(false)
   const [selectedShift, setSelectedShift] = useState<Shift | null>(null)
   const [selectedDateForNew, setSelectedDateForNew] = useState<string | null>(null)
 
@@ -140,9 +142,14 @@ export default function Shifts() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {profile?.role === 'ADMIN' && (
-            <Button variant="outline" onClick={() => setRatesModalOpen(true)}>
-              <Settings className="h-4 w-4 mr-2" /> Valores
-            </Button>
+            <>
+              <Button variant="outline" onClick={() => setRatesModalOpen(true)}>
+                <Settings className="h-4 w-4 mr-2" /> Valores
+              </Button>
+              <Button variant="outline" onClick={() => setReasonsModalOpen(true)}>
+                <Settings className="h-4 w-4 mr-2" /> Motivos
+              </Button>
+            </>
           )}
           <Button variant="outline" onClick={() => setQrModalOpen(true)}>
             <QrCode className="h-4 w-4 mr-2" /> QR Code Check-in
@@ -624,6 +631,7 @@ export default function Shifts() {
       <PayShiftModal open={payModalOpen} onOpenChange={setPayModalOpen} shift={shiftToPay} />
       <QrCodeModal open={qrModalOpen} onOpenChange={setQrModalOpen} />
       <ShiftRatesModal open={ratesModalOpen} onOpenChange={setRatesModalOpen} />
+      <ShiftReasonsModal open={reasonsModalOpen} onOpenChange={setReasonsModalOpen} />
     </div>
   )
 }

@@ -58,6 +58,7 @@ export interface Transaction {
   debtInstallmentId?: string
   nfAttachmentUrl?: string
   pcAttachmentUrl?: string
+  isImported?: boolean
 }
 
 export interface Debt {
@@ -299,6 +300,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
             debtInstallmentId: t.debt_installment_id || undefined,
             nfAttachmentUrl: (t as any).nf_attachment_url || undefined,
             pcAttachmentUrl: (t as any).pc_attachment_url || undefined,
+            isImported: t.is_imported || false,
           })),
         )
       if (patterns.data) {
@@ -460,6 +462,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       status: t.status,
       ai_confidence: t.aiConfidence,
       debt_installment_id: t.debtInstallmentId || null,
+      is_imported: t.isImported || false,
     }
 
     if (t.nfAttachmentUrl !== undefined) payload.nf_attachment_url = t.nfAttachmentUrl || null
@@ -544,6 +547,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       payload.nf_attachment_url = updates.nfAttachmentUrl || null
     if (updates.pcAttachmentUrl !== undefined)
       payload.pc_attachment_url = updates.pcAttachmentUrl || null
+    if (updates.isImported !== undefined) payload.is_imported = updates.isImported
 
     const { error } = await supabase.from('transactions').update(payload).eq('id', id)
     if (error) {

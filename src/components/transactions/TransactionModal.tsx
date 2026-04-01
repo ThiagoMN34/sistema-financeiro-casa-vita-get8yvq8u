@@ -176,7 +176,7 @@ export function TransactionModal({ open, onOpenChange, transaction }: Transactio
       value: Number(data.value),
       paymentDate: new Date(data.date).toISOString(),
       competenceDate: new Date(data.date).toISOString(),
-      status: data.status || 'CONFIRMED',
+      status: data.status || 'PENDING',
       debtInstallmentId: data.debtInstallmentId === 'none' ? undefined : data.debtInstallmentId,
       nfAttachmentUrl: data.nfAttachmentUrl || undefined,
       pcAttachmentUrl: data.pcAttachmentUrl || undefined,
@@ -250,7 +250,9 @@ export function TransactionModal({ open, onOpenChange, transaction }: Transactio
                     <SelectContent>
                       <SelectItem value="PENDING">Pendente (Aguardando Conferência)</SelectItem>
                       <SelectItem value="AUTHORIZED">Aprovado (Pronto para Pagar)</SelectItem>
-                      <SelectItem value="CONFIRMED">Pago / Confirmado</SelectItem>
+                      {transaction?.status === 'CONFIRMED' && (
+                        <SelectItem value="CONFIRMED">Pago / Confirmado (Conciliado)</SelectItem>
+                      )}
                     </SelectContent>
                   </Select>
                 </FormItem>

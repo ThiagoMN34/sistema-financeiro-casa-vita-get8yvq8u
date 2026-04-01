@@ -54,6 +54,8 @@ type ImportRow = {
   nfNumber?: string
   aiConfidence: 'high' | 'medium' | 'low'
   selected: boolean
+  matchedTransactionId?: string
+  matchedTransactionDesc?: string
 }
 
 export default function Import() {
@@ -67,8 +69,16 @@ export default function Import() {
   const [selectedAccountId, setSelectedAccountId] = useState<string>('')
 
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const { addTransaction, aiSuggestCategory, categories, companies, accounts, learnAiMapping } =
-    useFinance()
+  const {
+    transactions,
+    updateTransaction,
+    addTransaction,
+    aiSuggestCategory,
+    categories,
+    companies,
+    accounts,
+    learnAiMapping,
+  } = useFinance()
   const { toast } = useToast()
   const navigate = useNavigate()
 
@@ -170,7 +180,45 @@ export default function Import() {
     }
   }
 
+  const matchedTxIds = useRef<Set<string>>(new Set())
+
+  const findMatch = (
+    importedDate: string,
+    value: number,
+    type: 'IN' | 'OUT',
+    description: string,
+  ) => {
+    const candidates = transactions.filter(
+      (t) =>
+        (t.status === 'PENDING' || t.status === 'AUTHORIZED') &&
+        t.type === type &&
+        Math.abs(t.value - value) < 0.05 &&
+        !matchedTxIds.current.has(t.id),
+    )
+
+    const impDate = new Date(importedDate).getTime()
+
+    candidates.sort((a, b) => {
+      const diffA = Math.abs(new Date(a.paymentDate).getTime() - impDate)
+      const diffB = Math.abs(new Date(b.paymentDate).getTime() - impDate)
+      return diffA - diffB
+    })
+
+    const bestMatch = candidates.find((t) => {
+      const tDate = new Date(t.paymentDate).getTime()
+      const diffDays = Math.abs(tDate - impDate) / (1000 * 3600 * 24)
+      return diffDays <= 5
+    })
+
+    if (bestMatch) {
+      matchedTxIds.current.add(bestMatch.id)
+    }
+
+    return bestMatch
+  }
+
   const processFile = async (file: File) => {
+    matchedTxIds.current.clear()
     setIsProcessing(true)
     setStep(2)
 
@@ -405,6 +453,8 @@ export default function Import() {
         aiConfidence = suggestion.confidence
       }
 
+      const match = findMatch(date, value, type, description)
+
       parsed.push({
         id: `leg-${Date.now()}-${i}`,
         date,
@@ -412,11 +462,13 @@ export default function Import() {
         description,
         value,
         type,
-        categoryId,
+        categoryId: match ? match.categoryId : categoryId,
+        companyId: match ? match.companyId : selectedCompanyId,
+        accountId: match ? match.accountId : selectedAccountId,
         aiConfidence,
-        companyId: selectedCompanyId,
-        accountId: selectedAccountId,
         selected: true,
+        matchedTransactionId: match?.id,
+        matchedTransactionDesc: match?.description,
       })
     }
 
@@ -539,15 +591,23 @@ export default function Import() {
       if (date && hasVal) {
         if (!desc) desc = 'Lançamento Importado'
         const suggestion = aiSuggestCategory(desc)
+        const parsedType = val >= 0 ? 'IN' : 'OUT'
+        const parsedValue = Math.abs(val)
+        const match = findMatch(date, parsedValue, parsedType, desc)
+
         parsed.push({
           id: `imp-${Date.now()}-${i}`,
           date,
           description: desc.substring(0, 80),
-          value: Math.abs(val),
-          type: val >= 0 ? 'IN' : 'OUT',
-          categoryId: suggestion.categoryId,
+          value: parsedValue,
+          type: parsedType,
+          categoryId: match ? match.categoryId : suggestion.categoryId,
+          companyId: match?.companyId,
+          accountId: match?.accountId,
           aiConfidence: suggestion.confidence,
           selected: true,
+          matchedTransactionId: match?.id,
+          matchedTransactionDesc: match?.description,
         })
       }
     }
@@ -593,25 +653,34 @@ export default function Import() {
     }
 
     toImport.forEach((r) => {
-      addTransaction({
-        id: `tx-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        competenceDate: r.competenceDate
-          ? new Date(r.competenceDate).toISOString()
-          : new Date(r.date).toISOString(),
-        paymentDate: new Date(r.date).toISOString(),
-        companyId: r.companyId || selectedCompanyId,
-        accountId: r.accountId || selectedAccountId,
-        categoryId: r.categoryId,
-        description: r.description,
-        nfNumber: r.nfNumber,
-        value: r.value,
-        type: r.type,
-        status: 'CONFIRMED',
-        aiConfidence: r.aiConfidence,
-      })
-      if (r.description) {
-        const words = r.description.split(' ').filter((w) => w.length > 3)
-        if (words.length > 0) learnAiMapping(words[0], r.categoryId)
+      if (r.matchedTransactionId) {
+        updateTransaction(r.matchedTransactionId, {
+          status: 'CONFIRMED',
+          paymentDate: new Date(r.date).toISOString(),
+          isImported: true,
+        })
+      } else {
+        addTransaction({
+          id: `tx-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          competenceDate: r.competenceDate
+            ? new Date(r.competenceDate).toISOString()
+            : new Date(r.date).toISOString(),
+          paymentDate: new Date(r.date).toISOString(),
+          companyId: r.companyId || selectedCompanyId,
+          accountId: r.accountId || selectedAccountId,
+          categoryId: r.categoryId,
+          description: r.description,
+          nfNumber: r.nfNumber,
+          value: r.value,
+          type: r.type,
+          status: 'CONFIRMED',
+          aiConfidence: r.aiConfidence,
+          isImported: true,
+        })
+        if (r.description) {
+          const words = r.description.split(' ').filter((w) => w.length > 3)
+          if (words.length > 0) learnAiMapping(words[0], r.categoryId)
+        }
       }
     })
 
@@ -796,7 +865,7 @@ export default function Import() {
                         />
                       </TableHead>
                       <TableHead className="min-w-[120px]">Data</TableHead>
-                      <TableHead className="min-w-[200px]">Descrição</TableHead>
+                      <TableHead className="min-w-[200px]">Descrição / Conciliação</TableHead>
                       <TableHead className="min-w-[120px]">Valor (R$)</TableHead>
                       <TableHead className="min-w-[180px]">Categoria</TableHead>
                       <TableHead className="min-w-[150px]">Destino</TableHead>
@@ -806,7 +875,13 @@ export default function Import() {
                     {importRows.map((row, index) => (
                       <TableRow
                         key={row.id}
-                        className={!row.selected ? 'opacity-50 bg-slate-50' : ''}
+                        className={
+                          !row.selected
+                            ? 'opacity-50 bg-slate-50'
+                            : row.matchedTransactionId
+                              ? 'bg-emerald-50/50'
+                              : ''
+                        }
                       >
                         <TableCell className="text-center align-top pt-4">
                           <Checkbox
@@ -829,6 +904,17 @@ export default function Import() {
                             className="h-8 text-xs"
                             title={row.description}
                           />
+                          {row.matchedTransactionId ? (
+                            <div className="text-[10px] text-emerald-600 font-medium flex items-center gap-1 mt-1">
+                              <CheckCircle2 className="w-3 h-3" />
+                              Concilia com: {row.matchedTransactionDesc}
+                            </div>
+                          ) : (
+                            <div className="text-[10px] text-amber-600 font-medium flex items-center gap-1 mt-1">
+                              <AlertCircle className="w-3 h-3" />
+                              Novo Lançamento (Órfão)
+                            </div>
+                          )}
                         </TableCell>
                         <TableCell className="align-top space-y-2">
                           <Input

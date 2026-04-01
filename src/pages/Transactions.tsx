@@ -29,6 +29,8 @@ import {
 } from '@/components/ui/alert-dialog'
 import { DatePickerWithRange } from '@/components/ui/date-range-picker'
 import { startOfMonth, endOfMonth, subMonths, isSameDay, endOfDay, format } from 'date-fns'
+import { supabase } from '@/lib/supabase/client'
+import { cn } from '@/lib/utils'
 
 export default function Transactions() {
   const {
@@ -105,57 +107,84 @@ export default function Transactions() {
     setClearAllModalOpen(false)
   }
 
-  const exportToCSV = () => {
-    const headers = [
-      'Data Competência',
-      'Data Pagamento',
-      'Descrição',
-      'Categoria',
-      'Empresa',
-      'Conta',
-      'Tipo',
-      'Status',
-      'Valor',
-      'Documento/NF',
-      'Confiança IA',
-    ]
+  const exportToCSV = async () => {
+    try {
+      const { data: allData, error } = await supabase
+        .from('transactions')
+        .select(`
+          *,
+          category:categories(name),
+          company:companies(name),
+          account:accounts(name)
+        `)
+        .order('payment_date', { ascending: false })
 
-    const rows = displayData.map((tx) => {
-      const categoryName = categories.find((c) => c.id === tx.categoryId)?.name || ''
-      const companyName = companies.find((c) => c.id === tx.companyId)?.name || ''
-      const accountName = accounts.find((a) => a.id === tx.accountId)?.name || ''
-      const typeName = tx.type === 'IN' ? 'Receita' : 'Despesa'
-      const statusName =
-        tx.status === 'CONFIRMED'
-          ? 'Pago/Confirmado'
-          : tx.status === 'AUTHORIZED'
-            ? 'Aprovado'
-            : 'Pendente'
+      if (error) throw error
 
-      return [
-        formatDate(tx.competenceDate),
-        formatDate(tx.paymentDate),
-        `"${tx.description.replace(/"/g, '""')}"`,
-        `"${categoryName}"`,
-        `"${companyName}"`,
-        `"${accountName}"`,
-        typeName,
-        statusName,
-        tx.value.toString().replace('.', ','),
-        `"${tx.nfNumber || ''}"`,
-        tx.aiConfidence || '',
+      if (!allData || allData.length === 0) {
+        toast({ title: 'Exportação', description: 'Não há dados para exportar.' })
+        return
+      }
+
+      const headers = [
+        'ID',
+        'Data Competência',
+        'Data Pagamento',
+        'Descrição',
+        'Categoria',
+        'Empresa',
+        'Conta',
+        'Tipo',
+        'Status',
+        'Valor',
+        'Documento/NF',
+        'Confiança IA',
+        'Importado',
       ]
-    })
 
-    const csvContent = [headers.join(';'), ...rows.map((r) => r.join(';'))].join('\n')
-    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.setAttribute('href', url)
-    link.setAttribute('download', `lancamentos_${format(new Date(), 'yyyy-MM-dd')}.csv`)
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
+      const rows = allData.map((tx: any) => {
+        const categoryName = tx.category?.name || ''
+        const companyName = tx.company?.name || ''
+        const accountName = tx.account?.name || ''
+        const typeName = tx.type === 'IN' ? 'Receita' : 'Despesa'
+        const statusName =
+          tx.status === 'CONFIRMED'
+            ? 'Pago/Confirmado'
+            : tx.status === 'AUTHORIZED'
+              ? 'Aprovado'
+              : 'Pendente'
+
+        return [
+          tx.id,
+          formatDate(new Date(tx.competence_date)),
+          formatDate(new Date(tx.payment_date)),
+          `"${(tx.description || '').replace(/"/g, '""')}"`,
+          `"${categoryName}"`,
+          `"${companyName}"`,
+          `"${accountName}"`,
+          typeName,
+          statusName,
+          tx.value.toString().replace('.', ','),
+          `"${tx.nf_number || ''}"`,
+          tx.ai_confidence || '',
+          tx.is_imported ? 'Sim' : 'Não',
+        ]
+      })
+
+      const csvContent = [headers.join(';'), ...rows.map((r) => r.join(';'))].join('\n')
+      const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.setAttribute('href', url)
+      link.setAttribute('download', `todas_transacoes_${format(new Date(), 'yyyy-MM-dd')}.csv`)
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+
+      toast({ title: 'Exportação Concluída', description: 'O arquivo CSV foi gerado com sucesso.' })
+    } catch (err: any) {
+      toast({ title: 'Erro na exportação', description: err.message, variant: 'destructive' })
+    }
   }
 
   const today = new Date()
@@ -335,7 +364,14 @@ export default function Transactions() {
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-col">
-                        <span className="font-semibold text-slate-800 flex items-center gap-1.5">
+                        <span
+                          className={cn(
+                            'font-semibold flex items-center gap-1.5',
+                            (tx as any).isImported || tx.aiConfidence || (tx as any).is_imported
+                              ? 'text-blue-600'
+                              : 'text-slate-800',
+                          )}
+                        >
                           {tx.description}
                           {(tx.nfAttachmentUrl || tx.pcAttachmentUrl) && (
                             <Paperclip

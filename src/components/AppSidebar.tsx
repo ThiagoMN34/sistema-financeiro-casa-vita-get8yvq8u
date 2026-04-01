@@ -23,6 +23,8 @@ import {
   PieChart,
   Clock,
   Building2,
+  Briefcase,
+  UserCircle,
 } from 'lucide-react'
 import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '@/hooks/use-auth'
@@ -38,6 +40,8 @@ export function AppSidebar() {
     { name: 'Cartões', href: '/credit-cards', icon: CreditCard, roles: ['ADMIN'] },
     { name: 'Aprovações', href: '/approvals', icon: CheckSquare, roles: ['ADMIN', 'MANAGER'] },
     { name: 'Plantões', href: '/shifts', icon: Clock, roles: ['ADMIN', 'MANAGER'] },
+    { name: 'Funcionários', href: '/employees', icon: UserCircle, roles: ['ADMIN', 'MANAGER'] },
+    { name: 'Prestadores', href: '/providers', icon: Briefcase, roles: ['ADMIN', 'MANAGER'] },
     { name: 'Importar Extrato', href: '/import', icon: Upload, roles: ['ADMIN'] },
     { name: 'Relatórios', href: '/reports', icon: PieChart, roles: ['ADMIN'] },
     { name: 'Dívidas', href: '/debts', icon: Landmark, roles: ['ADMIN'] },

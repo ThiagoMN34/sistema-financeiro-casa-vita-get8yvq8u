@@ -78,6 +78,7 @@ export function EmployeeSheet({ open, onOpenChange, employee, onSuccess }: Props
       bank_agency: '',
       bank_account_type: '',
       bank_account_number: '',
+      pix_key: '',
       admission_date: '',
       workplace: '',
       dismissal_date: '',
@@ -124,6 +125,7 @@ export function EmployeeSheet({ open, onOpenChange, employee, onSuccess }: Props
         bank_agency: '',
         bank_account_type: '',
         bank_account_number: '',
+        pix_key: '',
         admission_date: '',
         workplace: '',
         dismissal_date: '',
@@ -540,6 +542,18 @@ export function EmployeeSheet({ open, onOpenChange, employee, onSuccess }: Props
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Número da Conta</FormLabel>
+                        <FormControl>
+                          <Input {...field} />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="pix_key"
+                    render={({ field }) => (
+                      <FormItem className="md:col-span-2">
+                        <FormLabel>Chave PIX</FormLabel>
                         <FormControl>
                           <Input {...field} />
                         </FormControl>

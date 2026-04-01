@@ -17,6 +17,8 @@ import Approvals from './pages/Approvals'
 import NotFound from './pages/NotFound'
 import Login from './pages/Login'
 import ShiftCheckIn from './pages/ShiftCheckIn'
+import Employees from './pages/Employees'
+import Providers from './pages/Providers'
 import { FinanceProvider } from './contexts/FinanceContext'
 import { AuthProvider, useAuth } from './hooks/use-auth'
 
@@ -115,6 +117,22 @@ const App = () => (
               }
             />
             <Route path="/shifts" element={<Shifts />} />
+            <Route
+              path="/employees"
+              element={
+                <RoleGuard allowedRoles={['ADMIN', 'MANAGER']}>
+                  <Employees />
+                </RoleGuard>
+              }
+            />
+            <Route
+              path="/providers"
+              element={
+                <RoleGuard allowedRoles={['ADMIN', 'MANAGER']}>
+                  <Providers />
+                </RoleGuard>
+              }
+            />
             <Route
               path="/reports"
               element={

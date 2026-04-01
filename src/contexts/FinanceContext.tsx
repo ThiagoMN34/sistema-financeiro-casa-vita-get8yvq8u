@@ -404,6 +404,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const filteredTransactions = useMemo(() => {
     return transactions
       .filter((t) => {
+        if (t.status === 'PENDING') return false
         const matchCompany = filters.companyId === 'all' || t.companyId === filters.companyId
         const matchAccount = filters.accountId === 'all' || t.accountId === filters.accountId
         const date = new Date(t.paymentDate)

@@ -79,7 +79,7 @@ export function TransactionModal({ open, onOpenChange, transaction }: Transactio
         description: '',
         value: '',
         type: 'OUT',
-        status: 'CONFIRMED',
+        status: 'PENDING',
         date: new Date().toISOString().split('T')[0],
         categoryId: '',
         companyId: companies[0]?.id || '',
@@ -426,7 +426,7 @@ export function TransactionModal({ open, onOpenChange, transaction }: Transactio
                       <div className="flex items-center gap-2">
                         <Input
                           type="file"
-                          accept="image/*,.pdf"
+                          accept="image/*,.pdf,.doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                           onChange={(e) => handleFileUpload(e, 'nfAttachmentUrl')}
                           disabled={isUploading}
                           className="text-xs flex-1 cursor-pointer"
@@ -461,7 +461,7 @@ export function TransactionModal({ open, onOpenChange, transaction }: Transactio
                       <div className="flex items-center gap-2">
                         <Input
                           type="file"
-                          accept="image/*,.pdf"
+                          accept="image/*,.pdf,.doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                           onChange={(e) => handleFileUpload(e, 'pcAttachmentUrl')}
                           disabled={isUploading}
                           className="text-xs flex-1 cursor-pointer"

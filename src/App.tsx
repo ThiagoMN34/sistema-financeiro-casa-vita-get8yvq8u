@@ -19,6 +19,7 @@ import Login from './pages/Login'
 import ShiftCheckIn from './pages/ShiftCheckIn'
 import Employees from './pages/Employees'
 import Providers from './pages/Providers'
+import { useEffect } from 'react'
 import { FinanceProvider } from './contexts/FinanceContext'
 import { AuthProvider, useAuth } from './hooks/use-auth'
 
@@ -67,126 +68,141 @@ const RoleGuard = ({
   return <>{children}</>
 }
 
-const App = () => (
-  <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-    <AuthProvider>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner position="top-right" />
-        <Routes>
-          <Route path="/check-in" element={<ShiftCheckIn />} />
-          <Route
-            element={
-              <AuthWrapper>
-                <FinanceProvider>
-                  <Layout />
-                </FinanceProvider>
-              </AuthWrapper>
-            }
-          >
+const App = () => {
+  useEffect(() => {
+    const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+      const msg = event.reason?.message || ''
+      if (msg === 'Failed to fetch' || msg.includes('Failed to fetch')) {
+        console.warn('Ignored unhandled fetch error (likely Supabase auto-refresh):', event.reason)
+        event.preventDefault()
+      }
+    }
+
+    window.addEventListener('unhandledrejection', handleUnhandledRejection)
+    return () => window.removeEventListener('unhandledrejection', handleUnhandledRejection)
+  }, [])
+
+  return (
+    <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <AuthProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner position="top-right" />
+          <Routes>
+            <Route path="/check-in" element={<ShiftCheckIn />} />
             <Route
-              path="/"
               element={
-                <RoleGuard allowedRoles={['ADMIN']}>
-                  <Index />
-                </RoleGuard>
+                <AuthWrapper>
+                  <FinanceProvider>
+                    <Layout />
+                  </FinanceProvider>
+                </AuthWrapper>
               }
-            />
-            <Route
-              path="/transactions"
-              element={
-                <RoleGuard allowedRoles={['ADMIN']}>
-                  <Transactions />
-                </RoleGuard>
-              }
-            />
-            <Route
-              path="/approvals"
-              element={
-                <RoleGuard allowedRoles={['ADMIN', 'MANAGER']}>
-                  <Approvals />
-                </RoleGuard>
-              }
-            />
-            <Route
-              path="/import"
-              element={
-                <RoleGuard allowedRoles={['ADMIN']}>
-                  <Import />
-                </RoleGuard>
-              }
-            />
-            <Route path="/shifts" element={<Shifts />} />
-            <Route
-              path="/employees"
-              element={
-                <RoleGuard allowedRoles={['ADMIN', 'MANAGER']}>
-                  <Employees />
-                </RoleGuard>
-              }
-            />
-            <Route
-              path="/providers"
-              element={
-                <RoleGuard allowedRoles={['ADMIN', 'MANAGER']}>
-                  <Providers />
-                </RoleGuard>
-              }
-            />
-            <Route
-              path="/reports"
-              element={
-                <RoleGuard allowedRoles={['ADMIN']}>
-                  <Reports />
-                </RoleGuard>
-              }
-            />
-            <Route
-              path="/debts"
-              element={
-                <RoleGuard allowedRoles={['ADMIN']}>
-                  <Debts />
-                </RoleGuard>
-              }
-            />
-            <Route
-              path="/categories"
-              element={
-                <RoleGuard allowedRoles={['ADMIN']}>
-                  <Categories />
-                </RoleGuard>
-              }
-            />
-            <Route
-              path="/accounts"
-              element={
-                <RoleGuard allowedRoles={['ADMIN']}>
-                  <Accounts />
-                </RoleGuard>
-              }
-            />
-            <Route
-              path="/credit-cards"
-              element={
-                <RoleGuard allowedRoles={['ADMIN']}>
-                  <CreditCards />
-                </RoleGuard>
-              }
-            />
-            <Route
-              path="/users"
-              element={
-                <RoleGuard allowedRoles={['ADMIN']}>
-                  <Users />
-                </RoleGuard>
-              }
-            />
-          </Route>
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </TooltipProvider>
-    </AuthProvider>
-  </BrowserRouter>
-)
+            >
+              <Route
+                path="/"
+                element={
+                  <RoleGuard allowedRoles={['ADMIN']}>
+                    <Index />
+                  </RoleGuard>
+                }
+              />
+              <Route
+                path="/transactions"
+                element={
+                  <RoleGuard allowedRoles={['ADMIN']}>
+                    <Transactions />
+                  </RoleGuard>
+                }
+              />
+              <Route
+                path="/approvals"
+                element={
+                  <RoleGuard allowedRoles={['ADMIN', 'MANAGER']}>
+                    <Approvals />
+                  </RoleGuard>
+                }
+              />
+              <Route
+                path="/import"
+                element={
+                  <RoleGuard allowedRoles={['ADMIN']}>
+                    <Import />
+                  </RoleGuard>
+                }
+              />
+              <Route path="/shifts" element={<Shifts />} />
+              <Route
+                path="/employees"
+                element={
+                  <RoleGuard allowedRoles={['ADMIN', 'MANAGER']}>
+                    <Employees />
+                  </RoleGuard>
+                }
+              />
+              <Route
+                path="/providers"
+                element={
+                  <RoleGuard allowedRoles={['ADMIN', 'MANAGER']}>
+                    <Providers />
+                  </RoleGuard>
+                }
+              />
+              <Route
+                path="/reports"
+                element={
+                  <RoleGuard allowedRoles={['ADMIN']}>
+                    <Reports />
+                  </RoleGuard>
+                }
+              />
+              <Route
+                path="/debts"
+                element={
+                  <RoleGuard allowedRoles={['ADMIN']}>
+                    <Debts />
+                  </RoleGuard>
+                }
+              />
+              <Route
+                path="/categories"
+                element={
+                  <RoleGuard allowedRoles={['ADMIN']}>
+                    <Categories />
+                  </RoleGuard>
+                }
+              />
+              <Route
+                path="/accounts"
+                element={
+                  <RoleGuard allowedRoles={['ADMIN']}>
+                    <Accounts />
+                  </RoleGuard>
+                }
+              />
+              <Route
+                path="/credit-cards"
+                element={
+                  <RoleGuard allowedRoles={['ADMIN']}>
+                    <CreditCards />
+                  </RoleGuard>
+                }
+              />
+              <Route
+                path="/users"
+                element={
+                  <RoleGuard allowedRoles={['ADMIN']}>
+                    <Users />
+                  </RoleGuard>
+                }
+              />
+            </Route>
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </TooltipProvider>
+      </AuthProvider>
+    </BrowserRouter>
+  )
+}
 
 export default App

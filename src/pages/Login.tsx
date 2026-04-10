@@ -8,9 +8,9 @@ import { Wallet } from 'lucide-react'
 
 export default function Login() {
   const [email, setEmail] = useState('thiagomnaves@yahoo.com.br')
-  const [password, setPassword] = useState('securepassword123')
+  const [password, setPassword] = useState('1234')
   const [loading, setLoading] = useState(false)
-  const { signIn } = useAuth()
+  const { signIn, resetPassword } = useAuth()
   const { toast } = useToast()
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -23,9 +23,35 @@ export default function Login() {
         title: 'Erro de Autenticação',
         description:
           error.message === 'Invalid login credentials'
-            ? 'E-mail ou senha incorretos. Verifique se digitou "securepassword123" corretamente.'
+            ? 'E-mail ou senha incorretos. Verifique as credenciais.'
             : error.message,
         variant: 'destructive',
+      })
+    }
+    setLoading(false)
+  }
+
+  const handleResetPassword = async () => {
+    if (!email) {
+      toast({
+        title: 'E-mail obrigatório',
+        description: 'Preencha o campo de e-mail para recuperar a senha.',
+        variant: 'destructive',
+      })
+      return
+    }
+    setLoading(true)
+    const { error } = await resetPassword(email)
+    if (error) {
+      toast({
+        title: 'Erro',
+        description: error.message,
+        variant: 'destructive',
+      })
+    } else {
+      toast({
+        title: 'E-mail enviado',
+        description: 'Verifique sua caixa de entrada para redefinir a senha.',
       })
     }
     setLoading(false)
@@ -51,7 +77,7 @@ export default function Login() {
             <p>
               <strong>Gestora:</strong> naves034@gmail.com
             </p>
-            <p className="mt-1 border-t pt-1">Senha: securepassword123</p>
+            <p className="mt-1 border-t pt-1">Senha: 1234</p>
           </div>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
@@ -65,7 +91,17 @@ export default function Login() {
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-700">Senha</label>
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium text-slate-700">Senha</label>
+                <button
+                  type="button"
+                  onClick={handleResetPassword}
+                  className="text-xs text-primary hover:underline font-medium"
+                  disabled={loading}
+                >
+                  Esqueci minha senha
+                </button>
+              </div>
               <Input
                 type="password"
                 value={password}
@@ -75,7 +111,7 @@ export default function Login() {
               />
             </div>
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? 'Entrando...' : 'Entrar'}
+              {loading ? 'Processando...' : 'Entrar'}
             </Button>
           </form>
         </CardContent>

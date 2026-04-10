@@ -116,15 +116,32 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
     })
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session)
-      setUser(session?.user ?? null)
-      if (session?.user) {
-        fetchProfile(session.user)
-      } else {
+    supabase.auth
+      .getSession()
+      .then(({ data: { session }, error }) => {
+        if (error) {
+          console.error('Session error:', error)
+          setSession(null)
+          setUser(null)
+          setProfile(null)
+          setLoading(false)
+          return
+        }
+        setSession(session)
+        setUser(session?.user ?? null)
+        if (session?.user) {
+          fetchProfile(session.user)
+        } else {
+          setLoading(false)
+        }
+      })
+      .catch((err) => {
+        console.error('Exception getting session:', err)
+        setSession(null)
+        setUser(null)
+        setProfile(null)
         setLoading(false)
-      }
-    })
+      })
 
     return () => subscription.unsubscribe()
   }, [])

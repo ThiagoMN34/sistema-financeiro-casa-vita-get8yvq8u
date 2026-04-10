@@ -48,7 +48,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       timeoutRef.current = setTimeout(
         async () => {
           console.log('Inactivity timeout reached (30 min). Logging out...')
-          await supabase.auth.signOut()
+          await supabase.auth.signOut().catch(() => {})
         },
         30 * 60 * 1000,
       ) // 30 minutes
@@ -87,12 +87,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
       }
     } catch (err) {
-      console.error('Exception fetching profile:', err)
-      // Final failsafe
+      console.warn('Exception fetching profile:', err)
+      // Final failsafe - fallback securely matching their email so ADMIN doesn't get locked out
       setProfile({
         id: currentUser.id,
         email: currentUser.email || '',
-        role: 'MANAGER',
+        role: currentUser.email === 'thiagomnaves@yahoo.com.br' ? 'ADMIN' : 'MANAGER',
       })
     } finally {
       setLoading(false)
@@ -107,7 +107,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setSession(session)
       setUser(session?.user ?? null)
 
-      if (!session) {
+      if (event === 'SIGNED_OUT' || event === 'USER_DELETED') {
+        setProfile(null)
+        setLoading(false)
+        const keys = Object.keys(localStorage)
+        keys.forEach((key) => {
+          if (key.includes('supabase.auth.token')) localStorage.removeItem(key)
+        })
+      } else if (!session) {
         setProfile(null)
         setLoading(false)
       } else {
@@ -118,15 +125,32 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     const initSession = async () => {
       try {
-        const {
-          data: { session },
-          error,
-        } = await supabase.auth.getSession()
-        if (error) {
-          console.error('Session error:', error)
-          if (error.message?.includes('Failed to fetch')) {
+        let sessionData = null
+        let sessionError = null
+
+        // Catch exceptions from the getSession execution directly
+        try {
+          const res = await supabase.auth.getSession()
+          sessionData = res.data.session
+          sessionError = res.error
+        } catch (e: any) {
+          console.warn('Caught throw in getSession:', e)
+          sessionError = e
+        }
+
+        if (sessionError) {
+          console.warn('Session error:', sessionError)
+          const msg = sessionError.message || ''
+
+          if (msg.includes('Failed to fetch') || msg.includes('Erro na requisição')) {
             console.warn('Network error fetching session, preserving state temporarily')
           } else {
+            // Clear corrupted invalid session silently to avoid bugs
+            await supabase.auth.signOut().catch(() => {})
+            const keys = Object.keys(localStorage)
+            keys.forEach((key) => {
+              if (key.includes('supabase.auth.token')) localStorage.removeItem(key)
+            })
             setSession(null)
             setUser(null)
             setProfile(null)
@@ -134,15 +158,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           setLoading(false)
           return
         }
-        setSession(session)
-        setUser(session?.user ?? null)
-        if (session?.user) {
-          fetchProfile(session.user)
+
+        setSession(sessionData)
+        setUser(sessionData?.user ?? null)
+
+        if (sessionData?.user) {
+          fetchProfile(sessionData.user)
         } else {
           setLoading(false)
         }
       } catch (err: any) {
-        console.error('Exception getting session:', err)
+        console.warn('Exception getting session:', err)
         const msg = err?.message || ''
         if (!msg.includes('Failed to fetch')) {
           setSession(null)

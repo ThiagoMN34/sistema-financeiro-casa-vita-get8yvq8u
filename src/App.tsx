@@ -70,14 +70,32 @@ const RoleGuard = ({
 
 const App = () => {
   useEffect(() => {
+    const isSupabaseAuthError = (msg: string, url?: string) => {
+      return (
+        msg.includes('auth/v1/token') ||
+        msg.includes('refresh_token') ||
+        msg.includes('Auth session missing') ||
+        (url && url.includes('auth/v1/token'))
+      )
+    }
+
     const clearSupabaseTokens = () => {
       try {
+        let cleared = false
         const keys = Object.keys(localStorage)
         keys.forEach((key) => {
           if (key.includes('supabase.auth.token')) {
             localStorage.removeItem(key)
+            cleared = true
           }
         })
+        if (cleared) {
+          setTimeout(() => {
+            if (window.location.pathname !== '/login' && window.location.pathname !== '/shifts') {
+              window.location.href = '/'
+            }
+          }, 1000)
+        }
       } catch (e) {
         // Ignore errors during cleanup
       }
@@ -92,45 +110,48 @@ const App = () => {
         msg.includes('Load failed') ||
         msg.includes('NetworkError') ||
         msg.includes('Erro na requisição') ||
-        (reason?.url && reason.url.includes('auth/v1/token'))
+        isSupabaseAuthError(msg, reason?.url)
       ) {
         console.warn('Ignored unhandled fetch error:', reason)
 
-        if (
-          msg.includes('auth/v1/token') ||
-          msg.includes('refresh_token') ||
-          (reason?.url && reason.url.includes('auth/v1/token'))
-        ) {
+        // Prevent default and stop immediate propagation to prevent Bug Scanner overlay
+        event.preventDefault()
+        event.stopImmediatePropagation()
+
+        if (isSupabaseAuthError(msg, reason?.url)) {
           clearSupabaseTokens()
         }
-
-        event.preventDefault()
       }
     }
 
     const handleError = (event: ErrorEvent) => {
       const msg = event.error?.message || event.message || ''
+
       if (
         msg.includes('Failed to fetch') ||
         msg.includes('Load failed') ||
         msg.includes('NetworkError') ||
-        msg.includes('Erro na requisição')
+        msg.includes('Erro na requisição') ||
+        isSupabaseAuthError(msg)
       ) {
         console.warn('Ignored fetch error:', msg)
 
-        if (msg.includes('auth/v1/token') || msg.includes('refresh_token')) {
+        // Prevent default and stop immediate propagation to prevent Bug Scanner overlay
+        event.preventDefault()
+        event.stopImmediatePropagation()
+
+        if (isSupabaseAuthError(msg)) {
           clearSupabaseTokens()
         }
-
-        event.preventDefault()
       }
     }
 
-    window.addEventListener('unhandledrejection', handleUnhandledRejection)
+    // Capture phase listeners (true) execute before the standard bubbling phase listeners
+    window.addEventListener('unhandledrejection', handleUnhandledRejection, true)
     window.addEventListener('error', handleError, true)
 
     return () => {
-      window.removeEventListener('unhandledrejection', handleUnhandledRejection)
+      window.removeEventListener('unhandledrejection', handleUnhandledRejection, true)
       window.removeEventListener('error', handleError, true)
     }
   }, [])

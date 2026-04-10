@@ -116,14 +116,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
     })
 
-    supabase.auth
-      .getSession()
-      .then(({ data: { session }, error }) => {
+    const initSession = async () => {
+      try {
+        const {
+          data: { session },
+          error,
+        } = await supabase.auth.getSession()
         if (error) {
           console.error('Session error:', error)
-          setSession(null)
-          setUser(null)
-          setProfile(null)
+          if (error.message?.includes('Failed to fetch')) {
+            console.warn('Network error fetching session, preserving state temporarily')
+          } else {
+            setSession(null)
+            setUser(null)
+            setProfile(null)
+          }
           setLoading(false)
           return
         }
@@ -134,14 +141,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         } else {
           setLoading(false)
         }
-      })
-      .catch((err) => {
+      } catch (err: any) {
         console.error('Exception getting session:', err)
-        setSession(null)
-        setUser(null)
-        setProfile(null)
+        const msg = err?.message || ''
+        if (!msg.includes('Failed to fetch')) {
+          setSession(null)
+          setUser(null)
+          setProfile(null)
+        }
         setLoading(false)
-      })
+      }
+    }
+
+    initSession()
 
     return () => subscription.unsubscribe()
   }, [])

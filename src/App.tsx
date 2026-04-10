@@ -70,16 +70,69 @@ const RoleGuard = ({
 
 const App = () => {
   useEffect(() => {
+    const clearSupabaseTokens = () => {
+      try {
+        const keys = Object.keys(localStorage)
+        keys.forEach((key) => {
+          if (key.includes('supabase.auth.token')) {
+            localStorage.removeItem(key)
+          }
+        })
+      } catch (e) {
+        // Ignore errors during cleanup
+      }
+    }
+
     const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
-      const msg = event.reason?.message || ''
-      if (msg === 'Failed to fetch' || msg.includes('Failed to fetch')) {
-        console.warn('Ignored unhandled fetch error (likely Supabase auto-refresh):', event.reason)
+      const reason = event.reason
+      const msg = reason?.message || reason?.toString() || ''
+
+      if (
+        msg.includes('Failed to fetch') ||
+        msg.includes('Load failed') ||
+        msg.includes('NetworkError') ||
+        msg.includes('Erro na requisição') ||
+        (reason?.url && reason.url.includes('auth/v1/token'))
+      ) {
+        console.warn('Ignored unhandled fetch error:', reason)
+
+        if (
+          msg.includes('auth/v1/token') ||
+          msg.includes('refresh_token') ||
+          (reason?.url && reason.url.includes('auth/v1/token'))
+        ) {
+          clearSupabaseTokens()
+        }
+
+        event.preventDefault()
+      }
+    }
+
+    const handleError = (event: ErrorEvent) => {
+      const msg = event.error?.message || event.message || ''
+      if (
+        msg.includes('Failed to fetch') ||
+        msg.includes('Load failed') ||
+        msg.includes('NetworkError') ||
+        msg.includes('Erro na requisição')
+      ) {
+        console.warn('Ignored fetch error:', msg)
+
+        if (msg.includes('auth/v1/token') || msg.includes('refresh_token')) {
+          clearSupabaseTokens()
+        }
+
         event.preventDefault()
       }
     }
 
     window.addEventListener('unhandledrejection', handleUnhandledRejection)
-    return () => window.removeEventListener('unhandledrejection', handleUnhandledRejection)
+    window.addEventListener('error', handleError, true)
+
+    return () => {
+      window.removeEventListener('unhandledrejection', handleUnhandledRejection)
+      window.removeEventListener('error', handleError, true)
+    }
   }, [])
 
   return (

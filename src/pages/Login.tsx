@@ -18,11 +18,12 @@ export default function Login() {
     setLoading(true)
     const { error } = await signIn(email, password)
     if (error) {
+      console.error('Login error:', error)
       toast({
         title: 'Erro de Autenticação',
         description:
           error.message === 'Invalid login credentials'
-            ? 'E-mail ou senha incorretos. Tente novamente.'
+            ? 'E-mail ou senha incorretos. Verifique se digitou "securepassword123" corretamente.'
             : error.message,
         variant: 'destructive',
       })

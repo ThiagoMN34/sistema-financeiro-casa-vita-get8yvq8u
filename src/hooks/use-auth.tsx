@@ -209,8 +209,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
-    return { error }
+    try {
+      // Force clearing old session data before new login attempt to avoid conflicts
+      const keys = Object.keys(localStorage)
+      keys.forEach((key) => {
+        if (key.includes('supabase.auth.token')) localStorage.removeItem(key)
+      })
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+      if (!error && data?.session) {
+        setSession(data.session)
+        setUser(data.user)
+      }
+      return { error }
+    } catch (err: any) {
+      console.error('Exception during signIn:', err)
+      return { error: err }
+    }
   }
 
   const signOut = async () => {

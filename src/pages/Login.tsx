@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useAuth } from '@/hooks/use-auth'
+import { useToast } from '@/hooks/use-toast'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -10,11 +11,22 @@ export default function Login() {
   const [password, setPassword] = useState('securepassword123')
   const [loading, setLoading] = useState(false)
   const { signIn } = useAuth()
+  const { toast } = useToast()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
-    await signIn(email, password)
+    const { error } = await signIn(email, password)
+    if (error) {
+      toast({
+        title: 'Erro de Autenticação',
+        description:
+          error.message === 'Invalid login credentials'
+            ? 'E-mail ou senha incorretos. Tente novamente.'
+            : error.message,
+        variant: 'destructive',
+      })
+    }
     setLoading(false)
   }
 
